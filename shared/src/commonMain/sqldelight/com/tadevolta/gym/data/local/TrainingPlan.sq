@@ -1,0 +1,49 @@
+CREATE TABLE training_plan (
+    id TEXT PRIMARY KEY,
+    unit_id TEXT NOT NULL,
+    student_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL,
+    start_date INTEGER NOT NULL,
+    end_date INTEGER,
+    updated_at INTEGER NOT NULL,
+    data_json TEXT NOT NULL
+);
+
+CREATE TABLE exercise_execution (
+    id TEXT PRIMARY KEY,
+    training_plan_id TEXT NOT NULL,
+    exercise_id TEXT NOT NULL,
+    set_number INTEGER NOT NULL,
+    planned_reps TEXT NOT NULL,
+    executed_reps INTEGER,
+    planned_weight REAL,
+    executed_weight REAL,
+    completed INTEGER NOT NULL,
+    timestamp INTEGER NOT NULL,
+    FOREIGN KEY(training_plan_id) REFERENCES training_plan(id)
+);
+
+CREATE INDEX training_plan_student_id ON training_plan(student_id);
+CREATE INDEX exercise_execution_training_plan_id ON exercise_execution(training_plan_id);
+
+selectAll:
+SELECT * FROM training_plan WHERE student_id = ? ORDER BY updated_at DESC;
+
+selectById:
+SELECT * FROM training_plan WHERE id = ?;
+
+insertOrReplace:
+INSERT OR REPLACE INTO training_plan (id, unit_id, student_id, name, description, status, start_date, end_date, updated_at, data_json)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteById:
+DELETE FROM training_plan WHERE id = ?;
+
+selectExerciseExecutions:
+SELECT * FROM exercise_execution WHERE training_plan_id = ? AND exercise_id = ? ORDER BY set_number;
+
+insertExerciseExecution:
+INSERT OR REPLACE INTO exercise_execution (id, training_plan_id, exercise_id, set_number, planned_reps, executed_reps, planned_weight, executed_weight, completed, timestamp)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);

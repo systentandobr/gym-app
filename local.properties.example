@@ -1,0 +1,5 @@
+# API Configuration
+API_BASE_URL=https://api.tadevolta.com
+SYS_SEGURANCA_API_KEY=sk_your_api_key_here
+SYS_SEGURANCA_BASE_URL=https://auth.systentando.com
+ENVIRONMENT=development

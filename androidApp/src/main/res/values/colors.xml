@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cores baseadas no design system da landing page (HSL) -->
+    
+    <!-- Primary: hsl(173, 80%, 40%) - Teal/Cyan -->
+    <color name="primary">#0FA5A5</color>
+    <color name="primary_foreground">#FFFFFF</color>
+    
+    <!-- Secondary: hsl(25, 95%, 53%) - Orange -->
+    <color name="secondary">#FF8C42</color>
+    <color name="secondary_foreground">#FFFFFF</color>
+    
+    <!-- Accent: hsl(280, 81%, 68%) - Purple -->
+    <color name="accent">#C77DFF</color>
+    <color name="accent_foreground">#FFFFFF</color>
+    
+    <!-- Background e Foreground -->
+    <color name="background">#FFFFFF</color>
+    <color name="foreground">#1E293B</color>
+    
+    <!-- Card colors -->
+    <color name="card">#FFFFFF</color>
+    <color name="card_foreground">#1E293B</color>
+    
+    <!-- Muted colors -->
+    <color name="muted">#F1F5F9</color>
+    <color name="muted_foreground">#64748B</color>
+    
+    <!-- Border e Input -->
+    <color name="border">#E2E8F0</color>
+    <color name="input">#F1F5F9</color>
+    <color name="ring">#FF8C42</color>
+    
+    <!-- Destructive -->
+    <color name="destructive">#EF4444</color>
+    <color name="destructive_foreground">#FFFFFF</color>
+    
+    <!-- Gamification colors -->
+    <color name="bronze">#FF8C42</color>
+    <color name="bronze_light">#FFB380</color>
+    <color name="bronze_dark">#CC6F35</color>
+    <color name="copper">#B87333</color>
+    <color name="gold">#FFD700</color>
+    
+    <!-- Neon colors -->
+    <color name="neon_cyan">#00FFD1</color>
+    <color name="neon_blue">#0080FF</color>
+    <color name="neon_green">#7AFF00</color>
+    <color name="neon_red">#FF4D4D</color>
+</resources>

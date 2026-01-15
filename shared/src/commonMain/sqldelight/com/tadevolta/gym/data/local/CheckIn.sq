@@ -1,0 +1,34 @@
+CREATE TABLE check_in (
+    id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    unit_id TEXT NOT NULL,
+    timestamp INTEGER NOT NULL,
+    latitude REAL,
+    longitude REAL,
+    synced INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX check_in_student_id ON check_in(student_id);
+CREATE INDEX check_in_timestamp ON check_in(timestamp);
+
+selectAll:
+SELECT * FROM check_in WHERE student_id = ? ORDER BY timestamp DESC;
+
+selectById:
+SELECT * FROM check_in WHERE id = ?;
+
+selectUnsynced:
+SELECT * FROM check_in WHERE student_id = ? AND synced = 0 ORDER BY timestamp DESC;
+
+selectByDateRange:
+SELECT * FROM check_in WHERE student_id = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp DESC;
+
+insertOrReplace:
+INSERT OR REPLACE INTO check_in (id, student_id, unit_id, timestamp, latitude, longitude, synced)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+markAsSynced:
+UPDATE check_in SET synced = 1 WHERE id = ?;
+
+deleteById:
+DELETE FROM check_in WHERE id = ?;

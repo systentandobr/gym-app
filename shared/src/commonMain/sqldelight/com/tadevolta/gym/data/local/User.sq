@@ -1,0 +1,23 @@
+CREATE TABLE user (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL,
+    unit_id TEXT,
+    avatar TEXT,
+    phone TEXT,
+    status TEXT NOT NULL,
+    email_verified INTEGER NOT NULL DEFAULT 0,
+    data_json TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+selectCurrent:
+SELECT * FROM user LIMIT 1;
+
+insertOrReplace:
+INSERT OR REPLACE INTO user (id, name, email, role, unit_id, avatar, phone, status, email_verified, data_json, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteAll:
+DELETE FROM user;
