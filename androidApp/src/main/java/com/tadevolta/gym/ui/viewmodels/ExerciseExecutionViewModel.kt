@@ -1,20 +1,26 @@
 package com.tadevolta.gym.ui.viewmodels
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tadevolta.gym.data.models.ExecutedSet
 import com.tadevolta.gym.domain.usecases.ExecuteExerciseUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class ExerciseExecutionViewModel(
+@HiltViewModel
+class ExerciseExecutionViewModel @Inject constructor(
     private val executeExerciseUseCase: ExecuteExerciseUseCase,
-    private val planId: String,
-    private val exerciseId: String,
-    private val initialSets: Int
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+    
+    private val planId: String = savedStateHandle.get<String>("planId") ?: ""
+    private val exerciseId: String = savedStateHandle.get<String>("exerciseId") ?: ""
+    private val initialSets: Int = savedStateHandle.get<Int>("initialSets") ?: 3
     
     private val _executedSets = MutableStateFlow<List<ExecutedSet>>(
         (1..initialSets).map { setNumber ->

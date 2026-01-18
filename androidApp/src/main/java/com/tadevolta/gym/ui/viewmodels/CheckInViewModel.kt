@@ -6,12 +6,15 @@ import com.tadevolta.gym.data.models.CheckIn
 import com.tadevolta.gym.data.models.CheckInStats
 import com.tadevolta.gym.data.remote.CheckInService
 import com.tadevolta.gym.data.repositories.AuthRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class CheckInViewModel(
+@HiltViewModel
+class CheckInViewModel @Inject constructor(
     private val checkInService: CheckInService,
     private val authRepository: AuthRepository
 ) : ViewModel() {

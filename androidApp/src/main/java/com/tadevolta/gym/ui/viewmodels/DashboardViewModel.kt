@@ -7,10 +7,12 @@ import com.tadevolta.gym.data.repositories.AuthRepository
 import com.tadevolta.gym.data.remote.CheckInService
 import com.tadevolta.gym.data.remote.GamificationService
 import com.tadevolta.gym.data.repositories.TrainingPlanRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class DashboardUiState(
     val user: User? = null,
@@ -21,7 +23,8 @@ data class DashboardUiState(
     val error: String? = null
 )
 
-class DashboardViewModel(
+@HiltViewModel
+class DashboardViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val checkInService: CheckInService,
     private val gamificationService: GamificationService,

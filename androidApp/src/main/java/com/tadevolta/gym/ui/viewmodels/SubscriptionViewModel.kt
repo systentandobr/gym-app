@@ -6,12 +6,15 @@ import com.tadevolta.gym.data.models.StudentSubscription
 import com.tadevolta.gym.data.models.SubscriptionPlan
 import com.tadevolta.gym.data.remote.SubscriptionService
 import com.tadevolta.gym.data.repositories.AuthRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class SubscriptionViewModel(
+@HiltViewModel
+class SubscriptionViewModel @Inject constructor(
     private val subscriptionService: SubscriptionService,
     private val authRepository: AuthRepository
 ) : ViewModel() {
