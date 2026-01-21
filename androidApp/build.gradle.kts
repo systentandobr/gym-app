@@ -54,7 +54,7 @@ android {
     }
     
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.4"
+        kotlinCompilerExtensionVersion = "1.5.14"
     }
     
     packaging {
@@ -126,6 +126,22 @@ kapt {
         option("--add-opens", "jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED")
         option("--add-opens", "jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED")
     }
+    useBuildCache = true
+}
+
+// Configurar JVM args para processos KAPT (necessário para Java 17+)
+tasks.withType<org.jetbrains.kotlin.gradle.internal.KaptWithoutKotlincTask>().configureEach {
+    kaptProcessJvmArgs.add("--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED")
+    kaptProcessJvmArgs.add("--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED")
+    kaptProcessJvmArgs.add("--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED")
+    kaptProcessJvmArgs.add("--add-opens=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED")
+    kaptProcessJvmArgs.add("--add-opens=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED")
+    kaptProcessJvmArgs.add("--add-opens=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED")
+    kaptProcessJvmArgs.add("--add-opens=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED")
+    kaptProcessJvmArgs.add("--add-opens=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED")
+    kaptProcessJvmArgs.add("--add-opens=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED")
+    kaptProcessJvmArgs.add("--add-opens=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED")
+    kaptProcessJvmArgs.add("--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED")
 }
 
 // Garantir que o módulo shared seja compilado antes do androidApp
