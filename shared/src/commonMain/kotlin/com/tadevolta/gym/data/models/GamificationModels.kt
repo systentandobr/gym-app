@@ -69,6 +69,47 @@ data class ProgressStats(
     val completedExercises: Int
 )
 
+@Serializable
+data class WeeklyActivity(
+    val period: ActivityPeriod,
+    val dailyActivity: List<DailyActivity>,
+    val summary: ActivitySummary
+)
+
+@Serializable
+data class ActivityPeriod(
+    val startDate: String,
+    val endDate: String
+)
+
+@Serializable
+data class DailyActivity(
+    val date: String, // YYYY-MM-DD
+    val dayOfWeek: String, // DOM, SEG, TER, QUA, QUI, SEX, SAB
+    val checkIns: Int,
+    val workoutsCompleted: Int,
+    val exercisesCompleted: Int,
+    val totalPoints: Int,
+    val activities: List<Activity> = emptyList()
+)
+
+@Serializable
+data class Activity(
+    val type: String, // CHECK_IN, WORKOUT_COMPLETION, EXERCISE_COMPLETION
+    val time: String, // HH:mm
+    val points: Int,
+    val description: String
+)
+
+@Serializable
+data class ActivitySummary(
+    val totalCheckIns: Int,
+    val totalWorkouts: Int,
+    val totalExercises: Int,
+    val totalPoints: Int,
+    val averagePointsPerDay: Int
+)
+
 // Serializers
 object AchievementRaritySerializer : KSerializer<AchievementRarity> {
     override val descriptor: SerialDescriptor = serialDescriptor<String>()

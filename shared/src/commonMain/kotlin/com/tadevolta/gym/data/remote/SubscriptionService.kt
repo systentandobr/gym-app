@@ -5,6 +5,8 @@ import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import io.ktor.http.*
+import com.tadevolta.gym.utils.config.EnvironmentConfig
 import kotlinx.serialization.json.Json
 
 interface SubscriptionService {
@@ -19,14 +21,13 @@ class SubscriptionServiceImpl(
     
     override suspend fun getSubscription(studentId: String): Result<StudentSubscription> {
         return try {
-            val json = Json { ignoreUnknownKeys = true }
             // Buscar subscription do student
             val response = client.get("/students/$studentId") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
             }
-            val studentResponse: ApiResponse<Student> = json.decodeFromString(response.bodyAsText())
+            val studentResponse: ApiResponse<Student> = response.body()
             
             if (studentResponse.success && studentResponse.data?.subscription != null) {
                 Result.Success(studentResponse.data.subscription)
@@ -40,13 +41,12 @@ class SubscriptionServiceImpl(
     
     override suspend fun getSubscriptionPlans(): Result<List<SubscriptionPlan>> {
         return try {
-            val response = client.get("/subscriptions/plans") {
+            val response = client.get("${EnvironmentConfig.API_BASE_URL}/subscriptions/plans") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
             }
-            val json = Json { ignoreUnknownKeys = true }
-            val apiResponse: ApiResponse<List<SubscriptionPlan>> = json.decodeFromString(response.bodyAsText())
+            val apiResponse: ApiResponse<List<SubscriptionPlan>> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
                 Result.Success(apiResponse.data)

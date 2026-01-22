@@ -43,8 +43,29 @@ data class AuthTokens(
 
 @Serializable
 data class LoginRequest(
+    val username: String,
+    val password: String,
+    val domain: String = "tadevolta-gym-app"
+)
+
+@Serializable
+data class SignUpRequest(
+    val username: String,
     val email: String,
     val password: String,
+    val firstName: String,
+    val lastName: String,
+    val country: String = "BR",
+    val state: String = "",
+    val zipCode: String = "",
+    val localNumber: String = "",
+    val unitName: String = "",
+    val address: String = "",
+    val complement: String = "",
+    val neighborhood: String = "",
+    val city: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     val domain: String = "tadevolta-gym-app"
 )
 
@@ -52,6 +73,59 @@ data class LoginRequest(
 data class LoginResponse(
     val user: User,
     val tokens: AuthTokens
+)
+
+// Modelo de resposta real da API de login
+@Serializable
+data class LoginApiResponse(
+    val accessToken: String,
+    val refreshToken: String,
+    val user: LoginApiUser
+)
+
+@Serializable
+data class LoginApiUser(
+    val id: String,
+    val username: String,
+    val email: String,
+    val domain: String? = null,
+    val profile: LoginApiProfile? = null,
+    val roles: List<LoginApiRole> = emptyList()
+)
+
+@Serializable
+data class LoginApiProfile(
+    val firstName: String? = null,
+    val lastName: String? = null,
+    val unitId: String? = null,
+    val avatar: String? = null,
+    val location: LoginApiLocation? = null,
+    val domain: String? = null
+)
+
+@Serializable
+data class LoginApiLocation(
+    val unitName: String? = null,
+    val address: String? = null,
+    val localNumber: String? = null,
+    val complement: String? = null,
+    val neighborhood: String? = null,
+    val city: String? = null,
+    val state: String? = null,
+    val zipCode: String? = null,
+    val country: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
+)
+
+@Serializable
+data class LoginApiRole(
+    val id: String,
+    val name: String,
+    val description: String? = null,
+    val permissions: List<String> = emptyList(),
+    val isSystem: Boolean = false,
+    val isActive: Boolean = true
 )
 
 @Serializable

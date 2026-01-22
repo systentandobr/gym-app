@@ -5,6 +5,8 @@ import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import io.ktor.http.*
+import com.tadevolta.gym.utils.config.EnvironmentConfig
 import kotlinx.serialization.json.Json
 
 interface UserService {
@@ -19,13 +21,12 @@ class UserServiceImpl(
     
     override suspend fun getCurrentUser(): Result<User> {
         return try {
-            val response = client.get("/users/profile") {
+            val response = client.get("${EnvironmentConfig.API_BASE_URL}/users/profile") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
             }
-            val json = Json { ignoreUnknownKeys = true }
-            val apiResponse: ApiResponse<User> = json.decodeFromString(response.bodyAsText())
+            val apiResponse: ApiResponse<User> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
                 Result.Success(apiResponse.data)
@@ -39,14 +40,14 @@ class UserServiceImpl(
     
     override suspend fun updateProfile(data: UpdateUserData): Result<User> {
         return try {
-            val response = client.patch("/users/profile") {
+            val response = client.patch("${EnvironmentConfig.API_BASE_URL}/users/profile") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
+                contentType(ContentType.Application.Json)
                 setBody(data)
             }
-            val json = Json { ignoreUnknownKeys = true }
-            val apiResponse: ApiResponse<User> = json.decodeFromString(response.bodyAsText())
+            val apiResponse: ApiResponse<User> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
                 Result.Success(apiResponse.data)

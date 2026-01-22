@@ -2,14 +2,18 @@ package com.tadevolta.gym.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tadevolta.gym.ui.components.*
+import com.tadevolta.gym.ui.theme.*
 import com.tadevolta.gym.ui.viewmodels.CheckInViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -17,9 +21,13 @@ import com.tadevolta.gym.ui.viewmodels.CheckInViewModel
 fun CheckInScreen(
     viewModel: CheckInViewModel = hiltViewModel()
 ) {
-    val stats by viewModel.checkInStats.collectAsState()
-    val history by viewModel.checkInHistory.collectAsState()
-    val isCheckingIn by viewModel.isCheckingIn.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
+    val stats = uiState.checkInStats
+    val history = uiState.checkInHistory
+    val isCheckingIn = uiState.isCheckingIn
+    val isValidatingLocation = uiState.isValidatingLocation
+    val isOutOfRange = uiState.isOutOfRange
+    val locationError = uiState.locationError
     
     Scaffold(
         topBar = {
@@ -65,18 +73,40 @@ fun CheckInScreen(
             
             item {
                 // Botão de check-in
-                Button(
+                GradientButton(
+                    text = if (isValidatingLocation) "Validando localização..." else "Fazer Check-in",
                     onClick = { viewModel.performCheckIn() },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isCheckingIn
-                ) {
-                    if (isCheckingIn) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                    } else {
-                        Text("Fazer Check-in")
+                    enabled = !isCheckingIn && !isValidatingLocation
+                )
+            }
+            
+            // Mensagem de erro de localização
+            if (locationError != null && !isOutOfRange) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = CardDark)
+                    ) {
+                        Text(
+                            text = locationError,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = Destructive
+                            ),
+                            modifier = Modifier.padding(16.dp)
+                        )
                     }
                 }
             }
+        }
+        
+        // Modal de erro "Fora de Alcance"
+        if (isOutOfRange) {
+            CheckInErrorModal(
+                unitName = uiState.selectedUnitName,
+                onRetry = { viewModel.retryLocationValidation() },
+                onDismiss = { viewModel.clearLocationError() }
+            )
         }
     }
 }

@@ -1,35 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Cores baseadas no design system da landing page (HSL) -->
+    <!-- Cores atualizadas para tema roxo/rosa vibrante conforme design das imagens -->
     
-    <!-- Primary: hsl(173, 80%, 40%) - Teal/Cyan -->
-    <color name="primary">#0FA5A5</color>
+    <!-- Primary: Roxo vibrante (conforme design) -->
+    <color name="primary">#8B5CF6</color>
     <color name="primary_foreground">#FFFFFF</color>
+    <color name="primary_light">#C084FC</color>
+    <color name="primary_dark">#7C3AED</color>
     
-    <!-- Secondary: hsl(25, 95%, 53%) - Orange -->
-    <color name="secondary">#FF8C42</color>
+    <!-- Secondary: Rosa vibrante -->
+    <color name="secondary">#EC4899</color>
     <color name="secondary_foreground">#FFFFFF</color>
+    <color name="secondary_light">#F9A8D4</color>
+    <color name="secondary_dark">#DB2777</color>
     
-    <!-- Accent: hsl(280, 81%, 68%) - Purple -->
-    <color name="accent">#C77DFF</color>
+    <!-- Accent: Roxo médio -->
+    <color name="accent">#A855F7</color>
     <color name="accent_foreground">#FFFFFF</color>
     
-    <!-- Background e Foreground -->
-    <color name="background">#FFFFFF</color>
-    <color name="foreground">#1E293B</color>
+    <!-- Background e Foreground (Dark Theme) -->
+    <color name="background">#1C1A29</color>
+    <color name="background_light">#FFFFFF</color>
+    <color name="foreground">#F1F5F9</color>
+    <color name="foreground_dark">#0F172A</color>
     
-    <!-- Card colors -->
-    <color name="card">#FFFFFF</color>
-    <color name="card_foreground">#1E293B</color>
+    <!-- Card colors (Dark Theme) -->
+    <color name="card">#1E293B</color>
+    <color name="card_darker">#334155</color>
+    <color name="card_foreground">#F1F5F9</color>
+    <color name="card_light">#FFFFFF</color>
+    <color name="card_foreground_light">#0F172A</color>
     
     <!-- Muted colors -->
-    <color name="muted">#F1F5F9</color>
-    <color name="muted_foreground">#64748B</color>
+    <color name="muted">#1E293B</color>
+    <color name="muted_light">#F1F5F9</color>
+    <color name="muted_foreground">#94A3B8</color>
+    <color name="muted_foreground_light">#64748B</color>
     
     <!-- Border e Input -->
-    <color name="border">#E2E8F0</color>
-    <color name="input">#F1F5F9</color>
-    <color name="ring">#FF8C42</color>
+    <color name="border">#334155</color>
+    <color name="border_light">#E2E8F0</color>
+    <color name="border_purple">#8B5CF6</color>
+    <color name="input">#1E293B</color>
+    <color name="input_light">#F1F5F9</color>
+    <color name="ring">#8B5CF6</color>
     
     <!-- Destructive -->
     <color name="destructive">#EF4444</color>
@@ -47,4 +61,15 @@
     <color name="neon_blue">#0080FF</color>
     <color name="neon_green">#7AFF00</color>
     <color name="neon_red">#FF4D4D</color>
+    
+    <!-- Cores de suporte para gradientes -->
+    <color name="purple_primary">#8B5CF6</color>
+    <color name="purple_secondary">#A855F7</color>
+    <color name="purple_light">#C084FC</color>
+    <color name="purple_dark">#7C3AED</color>
+    
+    <color name="pink_accent">#EC4899</color>
+    <color name="pink_secondary">#F472B6</color>
+    <color name="pink_light">#F9A8D4</color>
+    <color name="pink_dark">#DB2777</color>
 </resources>

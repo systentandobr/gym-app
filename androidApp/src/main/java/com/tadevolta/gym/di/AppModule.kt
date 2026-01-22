@@ -8,6 +8,7 @@ import com.tadevolta.gym.data.repositories.*
 import com.tadevolta.gym.data.repositories.AuthRepository
 import com.tadevolta.gym.domain.usecases.ExecuteExerciseUseCase
 import com.tadevolta.gym.domain.usecases.GetTrainingPlanUseCase
+import com.tadevolta.gym.utils.LocationHelper
 import com.tadevolta.gym.utils.config.EnvironmentConfig
 import com.tadevolta.gym.data.remote.createHttpClient
 import dagger.Module
@@ -34,6 +35,22 @@ object AppModule {
         @ApplicationContext context: Context
     ): SecureTokenStorage {
         return SecureTokenStorage(context)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideUserSessionStorage(
+        @ApplicationContext context: Context
+    ): UserSessionStorage {
+        return SecureUserSessionStorage(context)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideLocationHelper(
+        @ApplicationContext context: Context
+    ): LocationHelper {
+        return LocationHelper(context)
     }
     
     @Provides
@@ -110,12 +127,36 @@ object AppModule {
     
     @Provides
     @Singleton
+    fun provideBioimpedanceService(
+        client: HttpClient,
+        tokenStorage: SecureTokenStorage
+    ): BioimpedanceService {
+        return BioimpedanceServiceImpl(client) { 
+            kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+        }
+    }
+    
+    @Provides
+    @Singleton
+    fun provideFranchiseService(
+        client: HttpClient,
+        tokenStorage: SecureTokenStorage
+    ): FranchiseService {
+        // Token opcional - endpoint pode funcionar sem autenticação no onboarding
+        return FranchiseServiceImpl(client) { 
+            kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+        }
+    }
+    
+    @Provides
+    @Singleton
     fun provideAuthRepository(
         authService: AuthService,
         userService: UserService,
-        tokenStorage: SecureTokenStorage
+        tokenStorage: SecureTokenStorage,
+        userSessionStorage: UserSessionStorage
     ): AuthRepository {
-        return AuthRepository(authService, userService, tokenStorage)
+        return AuthRepository(authService, userService, tokenStorage, userSessionStorage)
     }
     
     @Provides
@@ -141,5 +182,14 @@ object AppModule {
         repository: TrainingPlanRepository
     ): ExecuteExerciseUseCase {
         return ExecuteExerciseUseCase(repository)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideLeadService(
+        client: HttpClient
+    ): LeadService {
+        // Não precisa de tokenProvider pois é endpoint público
+        return LeadServiceImpl(client)
     }
 }

@@ -14,7 +14,7 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0.0"
+        versionName = "0.0.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -25,8 +25,8 @@ android {
     buildTypes {
         getByName("debug") {
             isMinifyEnabled = false
-            buildConfigField("String", "API_BASE_URL", "\"https://api-dev.tadevolta.com\"")
-            buildConfigField("String", "SYS_SEGURANCA_BASE_URL", "\"https://auth-dev.systentando.com\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://api-prd.systentando.com\"")
+            buildConfigField("String", "SYS_SEGURANCA_BASE_URL", "\"https://auth.systentando.com\"")
         }
         getByName("release") {
             isMinifyEnabled = true
@@ -34,7 +34,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            buildConfigField("String", "API_BASE_URL", "\"https://api.tadevolta.com\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://api-prd.systentando.com\"")
             buildConfigField("String", "SYS_SEGURANCA_BASE_URL", "\"https://auth.systentando.com\"")
         }
     }
@@ -101,6 +101,10 @@ dependencies {
     
     // Encrypted SharedPreferences
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    
+    // Google Play Services Location
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
     
     // Testing
     testImplementation("junit:junit:4.13.2")

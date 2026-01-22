@@ -1,20 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base application theme for Compose -->
-    <style name="Theme.TadevoltaGym" parent="android:Theme.Material.Light.NoActionBar">
-        <!-- Primary brand color -->
-        <item name="android:colorPrimary">@color/primary</item>
-        <item name="android:colorPrimaryDark">@color/primary</item>
-        <item name="android:colorAccent">@color/secondary</item>
+    <!-- Base application theme for Compose - Dark Theme -->
+    <style name="Theme.TadevoltaGym" parent="android:Theme.Material.NoActionBar">
+        <!-- Primary brand color - Roxo vibrante -->
+        <item name="android:colorPrimary">@color/purple_primary</item>
+        <item name="android:colorPrimaryDark">@color/purple_dark</item>
+        <item name="android:colorAccent">@color/pink_accent</item>
         
-        <!-- Background -->
+        <!-- Background - Dark Theme -->
         <item name="android:colorBackground">@color/background</item>
         
         <!-- Status bar -->
-        <item name="android:statusBarColor">@color/primary</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@color/purple_primary</item>
+        <item name="android:windowLightStatusBar">false</item>
         
         <!-- Window background -->
         <item name="android:windowBackground">@color/background</item>
+        
+        <!-- Navigation bar -->
+        <item name="android:navigationBarColor">@color/card</item>
+    </style>
+    
+    <!-- Light theme variant (opcional) -->
+    <style name="Theme.TadevoltaGym.Light" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="android:colorPrimary">@color/purple_primary</item>
+        <item name="android:colorPrimaryDark">@color/purple_dark</item>
+        <item name="android:colorAccent">@color/pink_accent</item>
+        
+        <!-- Background - Light Theme -->
+        <item name="android:colorBackground">@color/background_light</item>
+        
+        <!-- Status bar -->
+        <item name="android:statusBarColor">@color/purple_primary</item>
+        <item name="android:windowLightStatusBar">true</item>
+        
+        <!-- Window background -->
+        <item name="android:windowBackground">@color/background_light</item>
     </style>
 </resources>

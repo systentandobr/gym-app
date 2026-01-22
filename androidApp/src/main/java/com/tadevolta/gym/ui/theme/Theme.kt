@@ -49,15 +49,15 @@ private val LightColorScheme = lightColorScheme(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Primary400,
-    onPrimary = Primary900,
-    primaryContainer = Primary800,
-    onPrimaryContainer = Primary100,
+    primary = PurplePrimary, // Usar roxo como primary
+    onPrimary = Color.White,
+    primaryContainer = PurpleDark,
+    onPrimaryContainer = PurpleLight,
     
-    secondary = Secondary400,
-    onSecondary = Secondary900,
-    secondaryContainer = Secondary800,
-    onSecondaryContainer = Secondary100,
+    secondary = PinkAccent, // Usar rosa como secondary
+    onSecondary = Color.White,
+    secondaryContainer = PinkDark,
+    onSecondaryContainer = PinkLight,
     
     tertiary = BronzeLight,
     onTertiary = Color.Black,
@@ -81,9 +81,9 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun TadevoltaGymTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true, // Tema escuro como padrão conforme imagens
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false, // Desabilitar para manter cores roxo/rosa consistentes
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

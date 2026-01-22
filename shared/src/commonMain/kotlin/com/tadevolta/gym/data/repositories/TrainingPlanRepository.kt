@@ -19,16 +19,18 @@ class TrainingPlanRepository(
         coerceInputValues = true
     }
     
-    fun getTrainingPlans(studentId: String): Flow<List<TrainingPlan>> = flow {
-        // Emitir cache local primeiro
-        val cached = database.trainingPlanQueries.selectAll(studentId).executeAsList()
-            .map { planRow ->
-                json.decodeFromString<TrainingPlan>(planRow.data_json)
-            }
-        emit(cached)
+    fun getTrainingPlans(studentId: String? = null): Flow<List<TrainingPlan>> = flow {
+        // Emitir cache local primeiro se tiver studentId
+        if (studentId != null) {
+            val cached = database.trainingPlanQueries.selectAll(studentId).executeAsList()
+                .map { planRow ->
+                    json.decodeFromString<TrainingPlan>(planRow.data_json)
+                }
+            emit(cached)
+        }
         
         // Buscar remoto e atualizar cache
-        when (val result = remoteService.getTrainingPlans(studentId)) {
+        when (val result = remoteService.getTrainingPlans(studentId, status = "active")) {
             is Result.Success -> {
                 result.data.forEach { plan ->
                     database.trainingPlanQueries.insertOrReplace(

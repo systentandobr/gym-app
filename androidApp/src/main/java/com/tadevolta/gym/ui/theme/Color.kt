@@ -1,5 +1,6 @@
 package com.tadevolta.gym.ui.theme
 
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 // Cores baseadas no design system da landing page (HSL)
@@ -25,6 +26,38 @@ val SecondaryForeground = Color(0xFFFFFFFF)
 val Accent = Color(0xFFC77DFF) // hsl(280, 81%, 68%)
 val AccentForeground = Color(0xFFFFFFFF)
 
+// Cores roxo/rosa para gradientes (conforme design das imagens)
+val PurplePrimary = Color(0xFF8B5CF6) // Roxo vibrante
+val PurpleSecondary = Color(0xFFA855F7) // Roxo médio
+val PurpleLight = Color(0xFFC084FC) // Roxo claro
+val PurpleDark = Color(0xFF7C3AED) // Roxo escuro
+
+val PinkAccent = Color(0xFFEC4899) // Rosa vibrante
+val PinkSecondary = Color(0xFFF472B6) // Rosa médio
+val PinkLight = Color(0xFFF9A8D4) // Rosa claro
+val PinkDark = Color(0xFFDB2777) // Rosa escuro
+
+// Gradiente roxo→rosa (horizontal)
+fun purpleToPinkGradient(): Brush {
+    return Brush.horizontalGradient(
+        colors = listOf(PurplePrimary, PinkAccent)
+    )
+}
+
+// Gradiente roxo→rosa (vertical)
+fun purpleToPinkGradientVertical(): Brush {
+    return Brush.verticalGradient(
+        colors = listOf(PurplePrimary, PinkAccent)
+    )
+}
+
+// Gradiente roxo→rosa→laranja (para alguns botões)
+fun purpleToPinkToOrangeGradient(): Brush {
+    return Brush.horizontalGradient(
+        colors = listOf(PurplePrimary, PinkAccent, Secondary)
+    )
+}
+
 // Gamification colors (baseado no design system)
 val Bronze = Color(0xFFFF8C42) // hsl(25, 95%, 53%)
 val BronzeLight = Color(0xFFFFB380) // hsl(30, 80%, 70%)
@@ -44,7 +77,7 @@ val DestructiveForeground = Color(0xFFFFFFFF)
 
 // Neutral colors (para dark mode)
 val Background = Color(0xFFFFFFFF)
-val BackgroundDark = Color(0xFF0F172A)
+val BackgroundDark = Color(0xFF1C1A29) // Fundo escuro conforme imagens
 val Foreground = Color(0xFF0F172A)
 val ForegroundDark = Color(0xFFF1F5F9)
 
@@ -55,11 +88,13 @@ val MutedForegroundDark = Color(0xFF94A3B8)
 
 val Card = Color(0xFFFFFFFF)
 val CardDark = Color(0xFF1E293B)
+val CardDarker = Color(0xFF334155) // Card mais escuro
 val CardForeground = Color(0xFF0F172A)
 val CardForegroundDark = Color(0xFFF1F5F9)
 
 val Border = Color(0xFFE2E8F0)
 val BorderDark = Color(0xFF334155)
+val BorderPurple = Color(0xFF8B5CF6) // Borda roxa para seleção
 
 val Input = Color(0xFFF1F5F9)
 val InputDark = Color(0xFF1E293B)

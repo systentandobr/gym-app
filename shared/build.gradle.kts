@@ -70,8 +70,8 @@ android {
     
     defaultConfig {
         minSdk = 24
-        buildConfigField("String", "API_BASE_URL", "\"https://api-dev.tadevolta.com\"")
-        buildConfigField("String", "SYS_SEGURANCA_BASE_URL", "\"https://auth-dev.systentando.com\"")
+        buildConfigField("String", "API_BASE_URL", "\"https://api-prd.systentando.com\"")
+        buildConfigField("String", "SYS_SEGURANCA_BASE_URL", "\"https://auth.systentando.com\"")
     }
     
     buildFeatures {

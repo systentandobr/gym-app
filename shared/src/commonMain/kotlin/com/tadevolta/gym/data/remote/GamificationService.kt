@@ -5,11 +5,14 @@ import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import io.ktor.http.*
+import com.tadevolta.gym.utils.config.EnvironmentConfig
 import kotlinx.serialization.json.Json
 
 interface GamificationService {
     suspend fun getGamificationData(userId: String): Result<GamificationData>
     suspend fun getRanking(unitId: String, limit: Int = 50): Result<List<RankingPosition>>
+    suspend fun getWeeklyActivity(studentId: String): Result<WeeklyActivity>
     suspend fun shareProgress(userId: String): Result<ShareableProgress>
 }
 
@@ -20,13 +23,12 @@ class GamificationServiceImpl(
     
     override suspend fun getGamificationData(userId: String): Result<GamificationData> {
         return try {
-            val response = client.get("/gamification/users/$userId") {
+            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/users/$userId") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
             }
-            val json = Json { ignoreUnknownKeys = true }
-            val apiResponse: ApiResponse<GamificationData> = json.decodeFromString(response.bodyAsText())
+            val apiResponse: ApiResponse<GamificationData> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
                 Result.Success(apiResponse.data)
@@ -40,15 +42,14 @@ class GamificationServiceImpl(
     
     override suspend fun getRanking(unitId: String, limit: Int): Result<List<RankingPosition>> {
         return try {
-            val response = client.get("/gamification/ranking") {
+            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/ranking") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
                 parameter("unitId", unitId)
                 parameter("limit", limit)
             }
-            val json = Json { ignoreUnknownKeys = true }
-            val apiResponse: ApiResponse<List<RankingPosition>> = json.decodeFromString(response.bodyAsText())
+            val apiResponse: ApiResponse<List<RankingPosition>> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
                 Result.Success(apiResponse.data)
@@ -60,15 +61,33 @@ class GamificationServiceImpl(
         }
     }
     
-    override suspend fun shareProgress(userId: String): Result<ShareableProgress> {
+    override suspend fun getWeeklyActivity(studentId: String): Result<WeeklyActivity> {
         return try {
-            val response = client.post("/gamification/users/$userId/share") {
+            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/weekly-activity") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
             }
-            val json = Json { ignoreUnknownKeys = true }
-            val apiResponse: ApiResponse<ShareableProgress> = json.decodeFromString(response.bodyAsText())
+            val apiResponse: ApiResponse<WeeklyActivity> = response.body()
+            
+            if (apiResponse.success && apiResponse.data != null) {
+                Result.Success(apiResponse.data)
+            } else {
+                Result.Error(Exception(apiResponse.error ?: "Erro ao buscar atividade semanal"))
+            }
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
+    
+    override suspend fun shareProgress(userId: String): Result<ShareableProgress> {
+        return try {
+            val response = client.post("${EnvironmentConfig.API_BASE_URL}/gamification/users/$userId/share") {
+                headers {
+                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                }
+            }
+            val apiResponse: ApiResponse<ShareableProgress> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
                 Result.Success(apiResponse.data)

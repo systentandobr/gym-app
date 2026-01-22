@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.tadevolta.gym.data.models.AuthTokens
+import com.tadevolta.gym.data.models.User
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -34,8 +35,9 @@ actual class SecureTokenStorage(private val context: Context) : TokenStorage {
         val tokensJson = sharedPreferences.getString("tokens", null) ?: return null
         return try {
             val tokens = json.decodeFromString<AuthTokens>(tokensJson)
-            // Verificar se o token expirou
-            if (System.currentTimeMillis() < tokens.expiresAt) {
+            // Verificar se o token expirou (expiresAt está em segundos, converter para millis)
+            val expiresAtMillis = tokens.expiresAt * 1000
+            if (System.currentTimeMillis() < expiresAtMillis) {
                 tokens.token
             } else {
                 null
@@ -57,5 +59,20 @@ actual class SecureTokenStorage(private val context: Context) : TokenStorage {
     
     actual override suspend fun clearTokens() {
         sharedPreferences.edit().clear().apply()
+    }
+    
+    actual override suspend fun saveUser(user: User) {
+        sharedPreferences.edit()
+            .putString("user", json.encodeToString(User.serializer(), user))
+            .apply()
+    }
+    
+    actual override suspend fun getUser(): User? {
+        val userJson = sharedPreferences.getString("user", null) ?: return null
+        return try {
+            json.decodeFromString<User>(userJson)
+        } catch (e: Exception) {
+            null
+        }
     }
 }
