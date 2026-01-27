@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tadevolta.gym.ui.components.*
 import com.tadevolta.gym.ui.theme.*
-import com.tadevolta.gym.ui.viewmodels.OnboardingViewModel
+import com.tadevolta.gym.ui.viewmodels.OnboardingSharedViewModel
 
 data class GoalOption(
     val id: String,
@@ -33,10 +33,8 @@ data class GoalOption(
 
 @Composable
 fun OnboardingGoalScreen(
-    viewModel: OnboardingViewModel = hiltViewModel(),
-    unitId: String? = null,
-    unitName: String? = null,
-    onNext: (String?, String?, String?) -> Unit = { _, _, _ -> }
+    viewModel: OnboardingSharedViewModel = hiltViewModel(),
+    onNext: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     
@@ -79,7 +77,7 @@ fun OnboardingGoalScreen(
         ) {
             // Progress Indicator
             item {
-                ProgressIndicator(currentStep = 2, totalSteps = 3)
+                ProgressIndicator(currentStep = 2, totalSteps = 4)
             }
             
             // Título
@@ -135,7 +133,7 @@ fun OnboardingGoalScreen(
                         text = "Próxima Etapa",
                         onClick = {
                             if (uiState.selectedGoal != null) {
-                                onNext(unitId, unitName, uiState.selectedGoal)
+                                onNext()
                             }
                         },
                         enabled = uiState.selectedGoal != null,
@@ -149,7 +147,7 @@ fun OnboardingGoalScreen(
                         }
                     )
                     Text(
-                        text = "PASSO 2 DE 3",
+                        text = "PASSO 2 DE 4",
                         style = MaterialTheme.typography.labelSmall.copy(
                             color = MutedForegroundDark
                         )

@@ -6,6 +6,7 @@ import com.tadevolta.gym.data.models.*
 import com.tadevolta.gym.data.repositories.AuthRepository
 import com.tadevolta.gym.data.remote.CheckInService
 import com.tadevolta.gym.data.remote.GamificationService
+import com.tadevolta.gym.data.remote.StudentService
 import com.tadevolta.gym.data.repositories.TrainingPlanRepository
 import com.tadevolta.gym.utils.getStudentId
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,7 +25,8 @@ data class DashboardUiState(
     val weeklyActivity: WeeklyActivity? = null,
     val rankingPreview: List<RankingPosition> = emptyList(),
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val studentId: String? = null
 )
 
 @HiltViewModel
@@ -32,7 +34,8 @@ class DashboardViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val checkInService: CheckInService,
     private val gamificationService: GamificationService,
-    private val trainingPlanRepository: TrainingPlanRepository
+    private val trainingPlanRepository: TrainingPlanRepository,
+    private val studentService: StudentService
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -77,15 +80,26 @@ class DashboardViewModel @Inject constructor(
             // Buscar planos de treino primeiro para obter studentId
             val trainingPlansFlow = trainingPlanRepository.getTrainingPlans(null)
             val plans = trainingPlansFlow.first()
-            val studentId = plans.firstOrNull()?.studentId ?: user.id // Fallback para userId
+            var studentId = plans.firstOrNull()?.studentId
             
-            // Atualizar plano de treino atual
-            _uiState.value = _uiState.value.copy(currentTrainingPlan = plans.firstOrNull())
+            // Se não encontrou no plano, buscar no backend através do userId
+            if (studentId == null) {
+                studentId = getStudentId(user.id, trainingPlanRepository, studentService)
+            }
+            
+            // Garantir que temos um studentId válido (fallback para userId se necessário)
+            val finalStudentId = studentId ?: user.id
+            
+            // Atualizar plano de treino atual e studentId
+            _uiState.value = _uiState.value.copy(
+                currentTrainingPlan = plans.firstOrNull(),
+                studentId = finalStudentId
+            )
             
             // Carregar dados em paralelo com studentId obtido
-            val checkInStatsResult = checkInService.getCheckInStats(studentId)
+            val checkInStatsResult = checkInService.getCheckInStats(finalStudentId)
             val gamificationResult = gamificationService.getGamificationData(user.id)
-            val weeklyActivityResult = gamificationService.getWeeklyActivity(studentId)
+            val weeklyActivityResult = gamificationService.getWeeklyActivity(finalStudentId)
             
             // Atualizar check-in stats
             if (checkInStatsResult is Result.Success) {
@@ -134,8 +148,9 @@ class DashboardViewModel @Inject constructor(
     fun checkIn() {
         viewModelScope.launch {
             val user = _uiState.value.user ?: return@launch
-            // Obter studentId
-            val studentId = getStudentId(user.id, trainingPlanRepository)
+            // Obter studentId - usar do estado se disponível, senão buscar
+            val studentId = _uiState.value.studentId 
+                ?: getStudentId(user.id, trainingPlanRepository, studentService)
             
             when (val result = checkInService.checkIn(studentId, null)) {
                 is Result.Success -> {

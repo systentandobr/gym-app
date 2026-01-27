@@ -1,5 +1,6 @@
 package com.tadevolta.gym.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -7,10 +8,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,11 +33,26 @@ fun RankingScreen(
     val ranking by viewModel.ranking.collectAsState()
     val userData by viewModel.userGamificationData.collectAsState()
     val checkInStats by viewModel.checkInStats.collectAsState()
+    val shareableText by viewModel.shareableText.collectAsState()
+    val context = LocalContext.current
     
     val top3 = ranking.take(3)
     val weeklyRanking = ranking.take(10) // Top 10 para ranking semanal
     
     val currentMonth = SimpleDateFormat("MMMM", Locale("pt", "BR")).format(Date())
+    
+    // Compartilhar quando o texto estiver disponível
+    LaunchedEffect(shareableText) {
+        shareableText?.let { text ->
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                putExtra(Intent.EXTRA_TEXT, text)
+                type = "text/plain"
+            }
+            context.startActivity(Intent.createChooser(shareIntent, "Compartilhar Progresso"))
+            viewModel.clearShareableText()
+        }
+    }
     
     Box(
         modifier = Modifier

@@ -8,10 +8,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,15 +21,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.tadevolta.gym.ui.components.GradientButton
 import com.tadevolta.gym.ui.theme.*
+import com.tadevolta.gym.ui.viewmodels.ForgotPasswordViewModel
 
 @Composable
 fun ForgotPasswordScreen(
+    viewModel: ForgotPasswordViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
-    onSendLink: (String) -> Unit = {}
+    onSendLinkSuccess: () -> Unit = {}
 ) {
-    var email by remember { mutableStateOf("") }
+    val uiState by viewModel.uiState.collectAsState()
+    
+    // Navegar de volta quando sucesso
+    LaunchedEffect(uiState.isSuccess) {
+        if (uiState.isSuccess) {
+            // Aguardar um pouco para mostrar a mensagem de sucesso
+            kotlinx.coroutines.delay(2000)
+            onSendLinkSuccess()
+        }
+    }
     
     Box(
         modifier = Modifier
@@ -133,8 +144,8 @@ fun ForgotPasswordScreen(
                     )
                 )
                 OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
+                    value = uiState.email,
+                    onValueChange = { viewModel.updateEmail(it) },
                     placeholder = { 
                         Text(
                             "Ex: astronauta@gym.com",
@@ -162,7 +173,32 @@ fun ForgotPasswordScreen(
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         keyboardType = KeyboardType.Email
                     ),
-                    singleLine = true
+                    singleLine = true,
+                    enabled = !uiState.isLoading && !uiState.isSuccess
+                )
+            }
+            
+            // Mensagem de erro
+            uiState.error?.let { error ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Destructive
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            
+            // Mensagem de sucesso
+            uiState.successMessage?.let { message ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Color(0xFF4CAF50) // Verde para sucesso
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
             
@@ -170,13 +206,11 @@ fun ForgotPasswordScreen(
             
             // Botão Enviar Link
             GradientButton(
-                text = "Enviar Link",
+                text = if (uiState.isLoading) "Enviando..." else "Enviar Link",
                 onClick = { 
-                    if (email.isNotBlank()) {
-                        onSendLink(email)
-                    }
+                    viewModel.sendRecoveryLink()
                 },
-                enabled = email.isNotBlank(),
+                enabled = !uiState.isLoading && !uiState.isSuccess && uiState.email.isNotBlank(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(

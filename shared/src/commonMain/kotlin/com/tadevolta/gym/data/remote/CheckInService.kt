@@ -7,7 +7,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import com.tadevolta.gym.utils.config.EnvironmentConfig
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.*
 
 interface CheckInService {
     suspend fun checkIn(studentId: String, location: Location?): Result<CheckIn>
@@ -22,12 +22,12 @@ class CheckInServiceImpl(
     
     override suspend fun checkIn(studentId: String, location: Location?): Result<CheckIn> {
         return try {
-            val requestBody = buildMap<String, Any?> {
+            val jsonBody = buildJsonObject {
                 location?.let {
-                    put("location", mapOf(
-                        "lat" to it.lat,
-                        "lng" to it.lng
-                    ))
+                    putJsonObject("location") {
+                        put("lat", it.lat)
+                        put("lng", it.lng)
+                    }
                 }
             }
             
@@ -36,7 +36,7 @@ class CheckInServiceImpl(
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
                 contentType(ContentType.Application.Json)
-                setBody(requestBody)
+                setBody(jsonBody)
             }
             val apiResponse: ApiResponse<CheckIn> = response.body()
             
@@ -52,23 +52,43 @@ class CheckInServiceImpl(
     
     override suspend fun getCheckInStats(studentId: String): Result<CheckInStats> {
         return try {
-            // Buscar histórico e extrair stats
-            when (val historyResult = getCheckInHistory(studentId, limit = 1)) {
+            // Buscar histórico completo para calcular stats
+            when (val historyResult = getCheckInHistory(studentId, limit = 100)) {
                 is Result.Success -> {
                     val history = historyResult.data
-                    // Calcular checkInsLast365Days - pode ser melhorado com endpoint específico
+                    // Calcular checkInsLast365Days usando o total do histórico
                     val checkInsLast365Days = history.total
                     Result.Success(CheckInStats.fromHistory(history, checkInsLast365Days))
                 }
                 is Result.Error -> {
-                    Result.Error(historyResult.exception)
+                    // Se houver erro, retornar stats vazios ao invés de quebrar
+                    Result.Success(CheckInStats(
+                        totalCheckIns = 0,
+                        currentStreak = 0,
+                        longestStreak = 0,
+                        checkInsThisYear = 0,
+                        checkInsLast365Days = 0
+                    ))
                 }
                 else -> {
-                    Result.Error(Exception("Erro desconhecido ao buscar estatísticas"))
+                    Result.Success(CheckInStats(
+                        totalCheckIns = 0,
+                        currentStreak = 0,
+                        longestStreak = 0,
+                        checkInsThisYear = 0,
+                        checkInsLast365Days = 0
+                    ))
                 }
             }
         } catch (e: Exception) {
-            Result.Error(e)
+            // Em caso de erro, retornar stats vazios ao invés de quebrar
+            Result.Success(CheckInStats(
+                totalCheckIns = 0,
+                currentStreak = 0,
+                longestStreak = 0,
+                checkInsThisYear = 0,
+                checkInsLast365Days = 0
+            ))
         }
     }
     
@@ -87,6 +107,18 @@ class CheckInServiceImpl(
                 startDate?.let { parameter("startDate", it) }
                 endDate?.let { parameter("endDate", it) }
             }
+            
+            // Tratar erro 404 - aluno não encontrado ou sem check-ins
+            if (response.status.value == 404) {
+                // Retornar histórico vazio ao invés de erro
+                return Result.Success(CheckInHistory(
+                    checkIns = emptyList(),
+                    total = 0,
+                    currentStreak = 0,
+                    longestStreak = 0
+                ))
+            }
+            
             val apiResponse: ApiResponse<CheckInHistory> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
@@ -95,7 +127,13 @@ class CheckInServiceImpl(
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar histórico de check-in"))
             }
         } catch (e: Exception) {
-            Result.Error(e)
+            // Se for erro de deserialização ou 404, retornar histórico vazio
+            Result.Success(CheckInHistory(
+                checkIns = emptyList(),
+                total = 0,
+                currentStreak = 0,
+                longestStreak = 0
+            ))
         }
     }
 }

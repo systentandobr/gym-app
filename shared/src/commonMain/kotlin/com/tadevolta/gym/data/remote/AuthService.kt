@@ -16,10 +16,20 @@ interface AuthService {
         email: String, 
         password: String,
         unitName: String? = null,
-        unitId: String? = null
+        unitId: String? = null,
+        address: String? = null,
+        city: String? = null,
+        state: String? = null,
+        zipCode: String? = null,
+        neighborhood: String? = null,
+        complement: String? = null,
+        localNumber: String? = null,
+        latitude: Double? = null,
+        longitude: Double? = null
     ): Result<LoginResponse>
     suspend fun logout(): Result<Unit>
     suspend fun refreshToken(refreshToken: String): Result<AuthTokens>
+    suspend fun forgotPassword(email: String, domain: String): Result<Unit>
 }
 
 class AuthServiceImpl(
@@ -100,13 +110,27 @@ class AuthServiceImpl(
         email: String, 
         password: String,
         unitName: String?,
-        unitId: String?
+        unitId: String?,
+        address: String?,
+        city: String?,
+        state: String?,
+        zipCode: String?,
+        neighborhood: String?,
+        complement: String?,
+        localNumber: String?,
+        latitude: Double?,
+        longitude: Double?
     ): Result<LoginResponse> {
         return try {
             // Dividir nome em firstName e lastName
-            val nameParts = name.trim().split(" ", limit = 2)
+            val nameParts = name.trim().split(" ").filter { it.isNotBlank() }
             val firstName = nameParts.firstOrNull() ?: ""
-            val lastName = nameParts.getOrNull(1) ?: ""
+            // Usar a última palavra como lastName (se tiver apenas uma palavra, usar ela mesma)
+            val lastName = if (nameParts.size > 1) {
+                nameParts.last()
+            } else {
+                firstName.takeIf { it.isNotBlank() } ?: "."
+            }
             val username = email.split("@").firstOrNull() ?: email
             
             val request = SignUpRequest(
@@ -116,43 +140,91 @@ class AuthServiceImpl(
                 firstName = firstName,
                 lastName = lastName,
                 country = "BR",
-                state = "",
-                zipCode = "",
-                localNumber = unitId ?: "",
+                state = state ?: "",
+                zipCode = zipCode ?: "",
+                localNumber = localNumber ?: "",
                 unitName = unitName ?: "",
-                address = "",
-                complement = "",
-                neighborhood = "",
-                city = "",
-                latitude = null,
-                longitude = null,
+                unitId = unitId ?: "",
+                address = address ?: "",
+                complement = complement ?: "",
+                neighborhood = neighborhood ?: "",
+                city = city ?: "",
+                latitude = latitude,
+                longitude = longitude,
                 domain = EnvironmentConfig.DOMAIN
             )
             
-            val response = try {
-                client.post("${EnvironmentConfig.SYS_SEGURANCA_BASE_URL}/api/v1/auth/register") {
-                    headers {
-                        append("X-API-Key", EnvironmentConfig.SYS_SEGURANCA_API_KEY)
-                        append("Content-Type", "application/json")
-                    }
-                    contentType(ContentType.Application.Json)
-                    setBody(request)
+            // Validar API KEY antes de enviar
+            val apiKey = EnvironmentConfig.SYS_SEGURANCA_API_KEY
+            if (apiKey.isBlank()) {
+                return Result.Error(Exception("API Key não configurada. Configure SYS_SEGURANCA_API_KEY em local.properties"))
+            }
+            
+            val response = client.post("${EnvironmentConfig.SYS_SEGURANCA_BASE_URL}/api/v1/auth/register") {
+                headers {
+                    append("X-API-Key", apiKey)
+                    append("Content-Type", "application/json")
                 }
-            } catch (e: Exception) {
-                // Fallback para API tradicional
-                client.post("${EnvironmentConfig.SYS_SEGURANCA_BASE_URL}/api/v1/auth/register") {
-                    contentType(ContentType.Application.Json)
-                    setBody(request)
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+            
+            // Verificar status HTTP antes de deserializar
+            if (response.status.value >= 400) {
+                // Tentar deserializar como ErrorResponse
+                try {
+                    val errorResponse: ErrorResponse = response.body()
+                    val errorMessage = errorResponse.formattedMessage 
+                        ?: errorResponse.error 
+                        ?: "Erro ao criar conta"
+                    return Result.Error(Exception(errorMessage))
+                } catch (e: Exception) {
+                    // Se não conseguir deserializar como ErrorResponse, usar mensagem genérica
+                    return Result.Error(Exception("Erro ao criar conta: ${response.status.description}"))
                 }
             }
             
-            val apiResponse: ApiResponse<LoginResponse> = response.body()
+            // Se sucesso, deserializar como LoginApiResponse (formato similar ao login)
+            val apiResponse: LoginApiResponse = response.body()
             
-            if (apiResponse.success && apiResponse.data != null) {
-                Result.Success(apiResponse.data)
-            } else {
-                Result.Error(Exception(apiResponse.error ?: "Erro ao criar conta"))
-            }
+            // Extrair expiração do token JWT (iat + 1200 minutos = 1200 * 60 segundos)
+            // Por padrão, vamos usar 1200 minutos (1200 * 60 segundos) se não conseguir decodificar
+            val expiresAt = System.currentTimeMillis() / 1000 + (1200 * 60) // 1200 minutos a partir de agora
+            
+            // Mapear para o formato esperado
+            val profile = apiResponse.user.profile
+            val primaryRole = apiResponse.user.roles.firstOrNull()?.name ?: "user"
+            
+            val user = User(
+                id = apiResponse.user.id,
+                name = "${profile?.firstName ?: ""} ${profile?.lastName ?: ""}".trim().takeIf { it.isNotBlank() } 
+                    ?: apiResponse.user.username,
+                email = apiResponse.user.email,
+                role = primaryRole,
+                unitId = profile?.unitId,
+                avatar = profile?.avatar,
+                phone = null, // Não vem na resposta de registro
+                status = UserStatus.ACTIVE, // Assumir ACTIVE se não vier
+                emailVerified = false, // Novo usuário, ainda não verificado
+                createdAt = null,
+                updatedAt = null
+            )
+            
+            val tokens = AuthTokens(
+                token = apiResponse.accessToken,
+                refreshToken = apiResponse.refreshToken,
+                expiresAt = expiresAt
+            )
+            
+            val loginResponse = LoginResponse(
+                user = user,
+                tokens = tokens
+            )
+            
+            Result.Success(loginResponse)
+        } catch (e: io.ktor.serialization.JsonConvertException) {
+            // Erro de serialização - pode ser formato inesperado
+            Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -179,6 +251,42 @@ class AuthServiceImpl(
                 Result.Success(apiResponse.data)
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao renovar token"))
+            }
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
+    
+    override suspend fun forgotPassword(email: String, domain: String): Result<Unit> {
+        return try {
+            val request = ForgotPasswordRequest(
+                email = email,
+                domain = domain
+            )
+            
+            val response = client.post("${EnvironmentConfig.SYS_SEGURANCA_BASE_URL}/api/v1/auth/recovery/request") {
+                headers {
+                    append("X-API-Key", EnvironmentConfig.SYS_SEGURANCA_API_KEY)
+                    append("Content-Type", "application/json")
+                }
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+            
+            // Verificar status HTTP
+            if (response.status.value in 200..299) {
+                Result.Success(Unit)
+            } else {
+                // Tentar deserializar como ErrorResponse
+                try {
+                    val errorResponse: ErrorResponse = response.body()
+                    val errorMessage = errorResponse.formattedMessage 
+                        ?: errorResponse.error 
+                        ?: "Erro ao enviar link de recuperação"
+                    Result.Error(Exception(errorMessage))
+                } catch (e: Exception) {
+                    Result.Error(Exception("Erro ao enviar link de recuperação: ${response.status.description}"))
+                }
             }
         } catch (e: Exception) {
             Result.Error(e)

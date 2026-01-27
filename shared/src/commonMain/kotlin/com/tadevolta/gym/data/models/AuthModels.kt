@@ -60,6 +60,7 @@ data class SignUpRequest(
     val zipCode: String = "",
     val localNumber: String = "",
     val unitName: String = "",
+    val unitId: String = "",
     val address: String = "",
     val complement: String = "",
     val neighborhood: String = "",
@@ -135,6 +136,12 @@ data class UpdateUserData(
     val firstName: String? = null,
     val lastName: String? = null,
     val phone: String? = null
+)
+
+@Serializable
+data class ForgotPasswordRequest(
+    val email: String,
+    val domain: String = "tadevolta-gym-app"
 )
 
 // Serializer para UserStatus

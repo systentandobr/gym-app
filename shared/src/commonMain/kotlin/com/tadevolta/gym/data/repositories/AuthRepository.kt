@@ -18,6 +18,18 @@ class AuthRepository(
     private val _authState = MutableStateFlow<AuthState>(AuthState.Unauthenticated)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
     
+    /**
+     * Força logout e limpa todos os dados de autenticação.
+     * Usado quando a reautenticação falha completamente.
+     */
+    suspend fun forceLogout() {
+        _authState.value = AuthState.Loading
+        authService.logout()
+        tokenStorage.clearTokens()
+        userSessionStorage?.clearCachedCredentials()
+        _authState.value = AuthState.Unauthenticated
+    }
+    
     suspend fun login(email: String, password: String, domain: String): Result<User> {
         _authState.value = AuthState.Loading
         
@@ -52,11 +64,23 @@ class AuthRepository(
         email: String, 
         password: String,
         unitName: String? = null,
-        unitId: String? = null
+        unitId: String? = null,
+        address: String? = null,
+        city: String? = null,
+        state: String? = null,
+        zipCode: String? = null,
+        neighborhood: String? = null,
+        complement: String? = null,
+        localNumber: String? = null,
+        latitude: Double? = null,
+        longitude: Double? = null
     ): Result<User> {
         _authState.value = AuthState.Loading
         
-        return when (val result = authService.signUp(name, email, password, unitName, unitId)) {
+        return when (val result = authService.signUp(
+            name, email, password, unitName, unitId,
+            address, city, state, zipCode, neighborhood, complement, localNumber, latitude, longitude
+        )) {
             is Result.Success -> {
                 tokenStorage.saveTokens(result.data.tokens)
                 tokenStorage.saveUser(result.data.user)
@@ -87,7 +111,20 @@ class AuthRepository(
         _authState.value = AuthState.Loading
         authService.logout()
         tokenStorage.clearTokens()
+        userSessionStorage?.clearCachedCredentials()
         _authState.value = AuthState.Unauthenticated
+    }
+
+    suspend fun updateProfile(data: UpdateUserData): Result<User> {
+        return when (val result = userService.updateProfile(data)) {
+            is Result.Success -> {
+                tokenStorage.saveUser(result.data)
+                _authState.value = AuthState.Authenticated(result.data)
+                Result.Success(result.data)
+            }
+            is Result.Error -> result
+            else -> Result.Error(Exception("Erro desconhecido"))
+        }
     }
     
     suspend fun getCurrentUser(): Result<User> {
@@ -112,8 +149,70 @@ class AuthRepository(
                 true
             }
             else -> {
+                // Se refresh token falhar, tentar reautenticação com cache
+                when (val reauthResult = reauthenticateWithCache()) {
+                    is Result.Success -> true
+                    else -> false
+                }
+            }
+        }
+    }
+    
+    /**
+     * Tenta reautenticar usando credenciais em cache.
+     * Retorna Result.Success se a reautenticação for bem-sucedida,
+     * Result.Error caso contrário.
+     */
+    suspend fun reauthenticateWithCache(): Result<User> {
+        val userSessionStorage = userSessionStorage ?: return Result.Error(
+            Exception("UserSessionStorage não disponível")
+        )
+        
+        // Buscar credenciais em cache
+        val cachedCredentials = userSessionStorage.getCachedCredentials()
+            ?: return Result.Error(
+                Exception("Credenciais em cache não encontradas")
+            )
+        
+        // Verificar se cache é válido
+        if (!cachedCredentials.isValid()) {
+            userSessionStorage.clearCachedCredentials()
+            return Result.Error(
+                Exception("Cache de credenciais expirado")
+            )
+        }
+        
+        // Tentar login com credenciais em cache
+        return when (val result = authService.login(
+            username = cachedCredentials.username,
+            password = cachedCredentials.password,
+            domain = EnvironmentConfig.DOMAIN
+        )) {
+            is Result.Success -> {
+                // Salvar novos tokens
+                tokenStorage.saveTokens(result.data.tokens)
+                tokenStorage.saveUser(result.data.user)
+                
+                // Atualizar credenciais em cache com novo timestamp
+                userSessionStorage.saveCredentials(
+                    username = cachedCredentials.username,
+                    email = cachedCredentials.email,
+                    password = cachedCredentials.password
+                )
+                
+                _authState.value = AuthState.Authenticated(result.data.user)
+                Result.Success(result.data.user)
+            }
+            is Result.Error -> {
+                // Se login falhar, limpar cache de credenciais
+                userSessionStorage.clearCachedCredentials()
                 logout()
-                false
+                result
+            }
+            else -> {
+                userSessionStorage.clearCachedCredentials()
+                logout()
+                Result.Error(Exception("Erro desconhecido ao reautenticar"))
             }
         }
     }

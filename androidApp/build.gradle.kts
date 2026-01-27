@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -22,11 +25,24 @@ android {
         }
     }
 
+    // Ler local.properties - método alternativo robusto
+    val sysSegurancaApiKey = run {
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            val properties = Properties()
+            FileInputStream(localPropertiesFile).use { properties.load(it) }
+            properties.getProperty("SYS_SEGURANCA_API_KEY", "")
+        } else {
+            ""
+        }
+    }
+    
     buildTypes {
         getByName("debug") {
             isMinifyEnabled = false
             buildConfigField("String", "API_BASE_URL", "\"https://api-prd.systentando.com\"")
             buildConfigField("String", "SYS_SEGURANCA_BASE_URL", "\"https://auth.systentando.com\"")
+            buildConfigField("String", "SYS_SEGURANCA_API_KEY", "\"$sysSegurancaApiKey\"")
         }
         getByName("release") {
             isMinifyEnabled = true
@@ -36,6 +52,7 @@ android {
             )
             buildConfigField("String", "API_BASE_URL", "\"https://api-prd.systentando.com\"")
             buildConfigField("String", "SYS_SEGURANCA_BASE_URL", "\"https://auth.systentando.com\"")
+            buildConfigField("String", "SYS_SEGURANCA_API_KEY", "\"$sysSegurancaApiKey\"")
         }
     }
     
@@ -98,6 +115,11 @@ dependencies {
     // Coil (imagens)
     implementation("io.coil-kt:coil-compose:2.5.0")
     implementation("io.coil-kt:coil-gif:2.5.0")
+    
+    // ExoPlayer (vídeos)
+    implementation("androidx.media3:media3-exoplayer:1.2.0")
+    implementation("androidx.media3:media3-ui:1.2.0")
+    implementation("androidx.media3:media3-common:1.2.0")
     
     // Encrypted SharedPreferences
     implementation("androidx.security:security-crypto:1.1.0-alpha06")

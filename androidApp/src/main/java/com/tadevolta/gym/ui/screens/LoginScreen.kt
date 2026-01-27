@@ -19,12 +19,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import android.net.Uri
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.tadevolta.gym.R
 import com.tadevolta.gym.ui.components.*
 import com.tadevolta.gym.ui.theme.*
 import com.tadevolta.gym.ui.viewmodels.LoginViewModel
@@ -64,46 +70,73 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Logo com gradiente
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(brush = purpleToPinkGradient()),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.FitnessCenter,
-                        contentDescription = "Logo",
-                        tint = Color.White,
-                        modifier = Modifier.size(48.dp)
-                    )
+                // Logo PNG ou MP4
+                // Para usar o PNG/MP4, coloque-o em res/raw/ com o nome "logo"
+                // Suporta: logo.png ou logo.mp4
+                val context = LocalContext.current
+                val logoUri = remember {
+                    try {
+                        val resourceId = R.raw.logov
+                        Uri.parse("android.resource://${context.packageName}/$resourceId")
+                    } catch (e: Exception) {
+                        null
+                    }
                 }
+                
+                if (logoUri != null) {
+                    // Tenta primeiro como MP4 (vídeo), se falhar, tenta como PNG
+                    VideoPlayer(
+                        videoUri = logoUri,
+                        modifier = Modifier
+                            .size(200.dp, 80.dp)
+                            .clip(RoundedCornerShape(16.dp)),
+                        autoPlay = true,
+                        looping = true
+                    )
+                } else {
+                    // Fallback: mostra ícone se não encontrar arquivo
+                    val logoPng = remember {
+                        try {
+                            val resourceId = R.raw.logo
+                            Uri.parse("android.resource://${context.packageName}/$resourceId")
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    if (logoPng != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(logoPng)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Logo",
+                            modifier = Modifier
+                                .size(200.dp, 80.dp)
+                                .clip(RoundedCornerShape(16.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(200.dp, 80.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(brush = purpleToPinkGradient()),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.FitnessCenter,
+                            contentDescription = "Logo",
+                            tint = Color.White,
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
+                }
+            }
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Tadevolta",
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    GradientText(
-                        text = "Bora Treinar Poha",
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
-                }
-                
                 Text(
-                    text = "Sua jornada épica começa aqui",
+                    text = "Em busca da motivação perfeita",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = MutedForegroundDark
                     )

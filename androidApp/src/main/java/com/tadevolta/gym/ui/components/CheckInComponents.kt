@@ -62,7 +62,7 @@ fun StreakCard(
         ) {
             Column {
                 Text(
-                    text = "Streak Atual",
+                    text = "Recorde Atual",
                     style = MaterialTheme.typography.titleSmall
                 )
                 Text(
@@ -72,7 +72,7 @@ fun StreakCard(
             }
             Column {
                 Text(
-                    text = "Maior Streak",
+                    text = "Maior Recorde",
                     style = MaterialTheme.typography.titleSmall
                 )
                 Text(

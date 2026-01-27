@@ -21,11 +21,13 @@ import com.tadevolta.gym.ui.viewmodels.ProfileViewModel
 fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
     onPersonalDataClick: () -> Unit = {},
-    onTrainingPlanClick: () -> Unit = {},
+    onTrainingPlanClick: (String?) -> Unit = {},
     onPrivacyClick: () -> Unit = {},
+    onAchievementsClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {}
 ) {
     val user by viewModel.user.collectAsState()
+    val studentId by viewModel.studentId.collectAsState()
     val gamificationData by viewModel.gamificationData.collectAsState()
     
     Box(
@@ -50,7 +52,7 @@ fun ProfileScreen(
             item {
                 AchievementsSection(
                     achievements = gamificationData?.achievements ?: emptyList(),
-                    onSeeAll = { /* TODO: Navegar para tela de todas as conquistas */ }
+                    onSeeAll = onAchievementsClick
                 )
             }
             
@@ -70,7 +72,7 @@ fun ProfileScreen(
             item {
                 SettingsSection(
                     onPersonalDataClick = onPersonalDataClick,
-                    onTrainingPlanClick = onTrainingPlanClick,
+                    onTrainingPlanClick = { onTrainingPlanClick(studentId) },
                     onPrivacyClick = onPrivacyClick,
                     onLogoutClick = onLogoutClick
                 )

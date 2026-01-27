@@ -1,6 +1,7 @@
 package com.tadevolta.gym.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +24,8 @@ fun DashboardHeader(
     userName: String,
     subtitle: String = "Painel do Atleta",
     avatarUrl: String? = null,
-    hasNotification: Boolean = false
+    hasNotification: Boolean = false,
+    onAvatarClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -35,14 +37,14 @@ fun DashboardHeader(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Olá, ${userName ?: "Atleta"}!",
+                    text = "Olá, ",
                     style = MaterialTheme.typography.headlineMedium.copy(
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
                 )
                 Text(
-                    text = userName,
+                    text = "${userName ?: "Atleta"}!",
                     style = MaterialTheme.typography.headlineMedium.copy(
                         color = PurplePrimary,
                         fontWeight = FontWeight.Bold
@@ -63,7 +65,8 @@ fun DashboardHeader(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(Color.Gray),
+                    .background(Color.Gray)
+                    .clickable(onClick = onAvatarClick),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -91,12 +94,14 @@ fun DashboardHeader(
 @Composable
 fun WorkoutNotificationCard(
     onDismiss: () -> Unit = {},
-    onStart: () -> Unit = {}
+    onStart: () -> Unit = {},
+    onCardClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 8.dp),
+            .padding(horizontal = 24.dp, vertical = 8.dp)
+            .clickable(onClick = onCardClick),
         colors = CardDefaults.cardColors(
             containerColor = PurplePrimary.copy(alpha = 0.2f)
         ),

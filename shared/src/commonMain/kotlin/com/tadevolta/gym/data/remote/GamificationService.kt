@@ -28,6 +28,18 @@ class GamificationServiceImpl(
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
             }
+            
+            // Tratar erro 500 ou outros erros HTTP
+            if (response.status.value >= 400) {
+                // Se houver erro do servidor, retornar erro mas não quebrar
+                val errorBody = try {
+                    response.body<String>()
+                } catch (e: Exception) {
+                    null
+                }
+                return Result.Error(Exception("Erro ao buscar dados de gamificação: ${errorBody ?: "Erro do servidor"}"))
+            }
+            
             val apiResponse: ApiResponse<GamificationData> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {

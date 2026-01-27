@@ -59,7 +59,7 @@ data class HealthInfo(
     val medicalConditions: List<String>? = null,
     val medications: List<String>? = null,
     val injuries: List<String>? = null,
-    val fitnessLevel: FitnessLevel
+    val fitnessLevel: FitnessLevel? = null
 )
 
 @Serializable
@@ -106,3 +106,17 @@ object FitnessLevelSerializer : KSerializer<FitnessLevel> {
         }
     }
 }
+
+// Request model para criar aluno
+@Serializable
+data class CreateStudentRequest(
+    val name: String,
+    val email: String,
+    val phone: String? = null,
+    val cpf: String? = null,
+    val birthDate: String? = null, // ISO 8601 format
+    val gender: Gender? = null,
+    val address: Address? = null,
+    val emergencyContact: EmergencyContact? = null,
+    val healthInfo: HealthInfo? = null
+)

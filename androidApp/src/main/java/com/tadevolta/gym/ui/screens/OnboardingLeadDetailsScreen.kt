@@ -18,6 +18,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,17 +33,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.tadevolta.gym.ui.components.*
 import com.tadevolta.gym.ui.theme.*
 import com.tadevolta.gym.ui.viewmodels.LeadType
-import com.tadevolta.gym.ui.viewmodels.OnboardingLeadViewModel
+import com.tadevolta.gym.ui.viewmodels.OnboardingSharedViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingLeadDetailsScreen(
-    viewModel: OnboardingLeadViewModel = hiltViewModel(),
-    unitId: String? = null,
-    unitName: String? = null,
-    goal: String? = null,
-    onStudentSelected: (String?, String?, String?) -> Unit = { _, _, _ -> },
+    viewModel: OnboardingSharedViewModel = hiltViewModel(),
+    onStudentSelected: () -> Unit = {},
     onGymLeadSubmitted: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -49,6 +49,13 @@ fun OnboardingLeadDetailsScreen(
     val averageStudentsOptions = listOf("0-50", "51-100", "101-200", "201-500", "500+")
     var showAverageStudentsDropdown by remember { 
         mutableStateOf(false) 
+    }
+    
+    // Se veio de "Seguir sem Unidade", marcar flag e sincronizar endereço manual
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (uiState.showContinueWithoutUnit && uiState.manualAddress.isNotBlank()) {
+            viewModel.setLeadManualAddress(uiState.manualAddress)
+        }
     }
     
     Box(
@@ -63,9 +70,9 @@ fun OnboardingLeadDetailsScreen(
         ) {
             // Progress Indicator
             item {
-                ProgressIndicator(currentStep = 3, totalSteps = 3)
+                ProgressIndicator(currentStep = 4, totalSteps = 4)
             }
-            
+
             // Título
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -90,7 +97,7 @@ fun OnboardingLeadDetailsScreen(
                     )
                 }
             }
-            
+
             // Cards de seleção de tipo
             item {
                 Row(
@@ -106,7 +113,7 @@ fun OnboardingLeadDetailsScreen(
                         onClick = { viewModel.selectLeadType(LeadType.STUDENT) },
                         modifier = Modifier.weight(1f)
                     )
-                    
+
                     // Card "Sou uma Academia"
                     LeadTypeCard(
                         title = "Sou uma Academia",
@@ -118,16 +125,67 @@ fun OnboardingLeadDetailsScreen(
                     )
                 }
             }
-            
-            // Campos condicionais para Academia
-            if (uiState.leadType == LeadType.GYM) {
+
+            // Aviso quando não há unidade selecionada
+            if (uiState.selectedUnitId == null && uiState.leadType == LeadType.STUDENT) {
+                item {
+                    WarningCard(
+                        title = "Atenção",
+                        message = "Sem uma academia selecionada, você não terá acompanhamento profissional de treinadores. Recomendamos selecionar uma unidade próxima para melhor experiência.",
+                        type = WarningType.WARNING,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Campos condicionais para Academia (ou quando veio de "Seguir sem Unidade" e escolheu "Sou Aluno")
+            if (uiState.leadType == LeadType.GYM || uiState.leadType == LeadType.STUDENT && uiState.selectedUnit == null) {
                 item {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        // Mensagem explicativa quando é aluno mas precisa preencher dados da academia
+                        if (uiState.leadType == LeadType.STUDENT && uiState.selectedUnitId == null) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = CardDark),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = PurplePrimary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Informações da Academia",
+                                            style = MaterialTheme.typography.titleSmall.copy(
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        )
+                                        Text(
+                                            text = "Preencha os dados da academia onde você deseja se matricular para que possamos entrar em contato.",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                color = MutedForegroundDark
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         // Nome da Academia
                         OutlinedTextField(
-                            value = uiState.gymName,
+                            value = uiState.selectedUnit?.name ?: uiState.gymName,
                             onValueChange = { viewModel.updateGymName(it) },
                             label = { Text("Nome da Academia") },
                             modifier = Modifier.fillMaxWidth(),
@@ -141,11 +199,11 @@ fun OnboardingLeadDetailsScreen(
                             ),
                             singleLine = true
                         )
-                        
+
                         // Email
                         OutlinedTextField(
-                            value = uiState.email,
-                            onValueChange = { viewModel.updateEmail(it) },
+                            value = uiState.leadEmail,
+                            onValueChange = { viewModel.updateLeadEmail(it) },
                             label = { Text("Email") },
                             modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
@@ -161,11 +219,12 @@ fun OnboardingLeadDetailsScreen(
                             ),
                             singleLine = true
                         )
-                        
+
                         // Telefone
                         OutlinedTextField(
-                            value = uiState.phone,
-                            onValueChange = { viewModel.updatePhone(it) },
+                            value = uiState.selectedUnit?.let { it.owner.phone }
+                                ?: uiState.leadPhone,
+                            onValueChange = { viewModel.updateLeadPhone(it) },
                             label = { Text("Telefone") },
                             modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
@@ -181,11 +240,11 @@ fun OnboardingLeadDetailsScreen(
                             ),
                             singleLine = true
                         )
-                        
+
                         // Endereço
                         OutlinedTextField(
-                            value = uiState.address,
-                            onValueChange = { viewModel.updateAddress(it) },
+                            value = uiState.selectedUnit?.address ?: uiState.leadAddress,
+                            onValueChange = { viewModel.updateLeadAddress(it) },
                             label = { Text("Endereço") },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -198,15 +257,15 @@ fun OnboardingLeadDetailsScreen(
                             ),
                             singleLine = true
                         )
-                        
+
                         // Cidade e Estado
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             OutlinedTextField(
-                                value = uiState.city,
-                                onValueChange = { viewModel.updateCity(it) },
+                                value = uiState.selectedUnit?.city ?: uiState.leadCity,
+                                onValueChange = { viewModel.updateLeadCity(it) },
                                 label = { Text("Cidade") },
                                 modifier = Modifier.weight(1f),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -219,10 +278,10 @@ fun OnboardingLeadDetailsScreen(
                                 ),
                                 singleLine = true
                             )
-                            
+
                             OutlinedTextField(
-                                value = uiState.state,
-                                onValueChange = { viewModel.updateState(it) },
+                                value = uiState.selectedUnit?.state ?: uiState.leadState,
+                                onValueChange = { viewModel.updateLeadState(it) },
                                 label = { Text("Estado (UF)") },
                                 modifier = Modifier.weight(1f),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -236,11 +295,13 @@ fun OnboardingLeadDetailsScreen(
                                 singleLine = true
                             )
                         }
-                        
+
                         // Média de Alunos Matriculados (Dropdown)
                         ExposedDropdownMenuBox(
                             expanded = showAverageStudentsDropdown,
-                            onExpandedChange = { showAverageStudentsDropdown = !showAverageStudentsDropdown }
+                            onExpandedChange = {
+                                showAverageStudentsDropdown = !showAverageStudentsDropdown
+                            }
                         ) {
                             OutlinedTextField(
                                 value = uiState.averageStudents ?: "",
@@ -264,7 +325,7 @@ fun OnboardingLeadDetailsScreen(
                                     unfocusedLabelColor = MutedForegroundDark
                                 )
                             )
-                            
+
                             ExposedDropdownMenu(
                                 expanded = showAverageStudentsDropdown,
                                 onDismissRequest = { showAverageStudentsDropdown = false },
@@ -286,10 +347,263 @@ fun OnboardingLeadDetailsScreen(
                                 }
                             }
                         }
+
+                        // Campos adicionais quando veio de "Seguir sem Unidade"
+                        if (uiState.cameFromWithoutUnit) {
+                            // Divisor
+                            Divider(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                color = MutedForegroundDark.copy(alpha = 0.3f)
+                            )
+
+                            Text(
+                                text = "Informações do Responsável/Personal",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+                            )
+
+                            // Nome do Responsável
+                            OutlinedTextField(
+                                value = uiState.responsibleName,
+                                onValueChange = { viewModel.updateResponsibleName(it) },
+                                label = { Text("Nome do Responsável/Personal") },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = PurplePrimary,
+                                    unfocusedBorderColor = MutedForegroundDark,
+                                    focusedLabelColor = PurplePrimary,
+                                    unfocusedLabelColor = MutedForegroundDark
+                                ),
+                                singleLine = true
+                            )
+
+                            // Telefone do Responsável
+                            OutlinedTextField(
+                                value = uiState.responsiblePhone,
+                                onValueChange = { viewModel.updateResponsiblePhone(it) },
+                                label = { Text("Telefone do Responsável") },
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    keyboardType = KeyboardType.Phone
+                                ),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = PurplePrimary,
+                                    unfocusedBorderColor = MutedForegroundDark,
+                                    focusedLabelColor = PurplePrimary,
+                                    unfocusedLabelColor = MutedForegroundDark
+                                ),
+                                singleLine = true
+                            )
+
+                            // Email do Responsável
+                            OutlinedTextField(
+                                value = uiState.selectedUnit?.let { it.owner.email }
+                                    ?: uiState.responsibleEmail,
+                                onValueChange = { viewModel.updateResponsibleEmail(it) },
+                                label = { Text("Email do Responsável") },
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    keyboardType = KeyboardType.Email
+                                ),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = PurplePrimary,
+                                    unfocusedBorderColor = MutedForegroundDark,
+                                    focusedLabelColor = PurplePrimary,
+                                    unfocusedLabelColor = MutedForegroundDark
+                                ),
+                                singleLine = true
+                            )
+                        }
+
+
                     }
                 }
             }
-            
+
+            // Campos adicionais para aluno
+            if (uiState.leadType == LeadType.STUDENT) {
+                item {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Divisor
+                        Divider(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            color = MutedForegroundDark.copy(alpha = 0.3f)
+                        )
+
+                        Text(
+                            text = "Informações de Condicionamento Físico",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+                        )
+
+                        // Nível de Condicionamento Físico
+                        var showFitnessLevelDropdown by remember { mutableStateOf(false) }
+                        val fitnessLevelOptions =
+                            listOf("Iniciante", "Intermediário", "Avançado")
+                        val fitnessLevelMap = mapOf(
+                            "Iniciante" to com.tadevolta.gym.data.models.FitnessLevel.BEGINNER,
+                            "Intermediário" to com.tadevolta.gym.data.models.FitnessLevel.INTERMEDIATE,
+                            "Avançado" to com.tadevolta.gym.data.models.FitnessLevel.ADVANCED
+                        )
+                        val selectedFitnessLevelText =
+                            uiState.fitnessLevel?.let { level ->
+                                fitnessLevelMap.entries.find { it.value == level }?.key
+                                    ?: ""
+                            } ?: ""
+
+                        ExposedDropdownMenuBox(
+                            expanded = showFitnessLevelDropdown,
+                            onExpandedChange = {
+                                showFitnessLevelDropdown = !showFitnessLevelDropdown
+                            }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedFitnessLevelText,
+                                onValueChange = { },
+                                label = { Text("Nível de Condicionamento Físico") },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(),
+                                readOnly = true,
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(
+                                        expanded = showFitnessLevelDropdown
+                                    )
+                                },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = PurplePrimary,
+                                    unfocusedBorderColor = MutedForegroundDark,
+                                    focusedLabelColor = PurplePrimary,
+                                    unfocusedLabelColor = MutedForegroundDark
+                                )
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = showFitnessLevelDropdown,
+                                onDismissRequest = { showFitnessLevelDropdown = false },
+                                modifier = Modifier.background(CardDark)
+                            ) {
+                                fitnessLevelOptions.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = option,
+                                                color = Color.White
+                                            )
+                                        },
+                                        onClick = {
+                                            fitnessLevelMap[option]?.let {
+                                                viewModel.updateFitnessLevel(
+                                                    it
+                                                )
+                                            }
+                                            showFitnessLevelDropdown = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Contato de Emergência (Opcional)
+                        Text(
+                            text = "Contato de Emergência (Opcional)",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = uiState.emergencyContactName ?: "",
+                            onValueChange = {
+                                viewModel.updateEmergencyContact(
+                                    name = it,
+                                    phone = uiState.emergencyContactPhone ?: "",
+                                    relationship = uiState.emergencyContactRelationship
+                                        ?: ""
+                                )
+                            },
+                            label = { Text("Nome do Contato") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = PurplePrimary,
+                                unfocusedBorderColor = MutedForegroundDark,
+                                focusedLabelColor = PurplePrimary,
+                                unfocusedLabelColor = MutedForegroundDark
+                            ),
+                            singleLine = true
+                        )
+
+                        OutlinedTextField(
+                            value = uiState.emergencyContactPhone ?: "",
+                            onValueChange = {
+                                viewModel.updateEmergencyContact(
+                                    name = uiState.emergencyContactName ?: "",
+                                    phone = it,
+                                    relationship = uiState.emergencyContactRelationship
+                                        ?: ""
+                                )
+                            },
+                            label = { Text("Telefone do Contato") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = KeyboardType.Phone
+                            ),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = PurplePrimary,
+                                unfocusedBorderColor = MutedForegroundDark,
+                                focusedLabelColor = PurplePrimary,
+                                unfocusedLabelColor = MutedForegroundDark
+                            ),
+                            singleLine = true
+                        )
+
+                        OutlinedTextField(
+                            value = uiState.emergencyContactRelationship ?: "",
+                            onValueChange = {
+                                viewModel.updateEmergencyContact(
+                                    name = uiState.emergencyContactName ?: "",
+                                    phone = uiState.emergencyContactPhone ?: "",
+                                    relationship = it
+                                )
+                            },
+                            label = { Text("Relação (Ex: Pai, Mãe, Cônjuge)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = PurplePrimary,
+                                unfocusedBorderColor = MutedForegroundDark,
+                                focusedLabelColor = PurplePrimary,
+                                unfocusedLabelColor = MutedForegroundDark
+                            ),
+                            singleLine = true
+                        )
+                    }
+                }
+            }
+
             // Mensagem de erro
             uiState.error?.let { error ->
                 item {
@@ -323,22 +637,27 @@ fun OnboardingLeadDetailsScreen(
                 }
             }
             
-            // Botão Finalizar Cadastro
+            // Botão Avançar para Cadastro
             item {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     GradientButton(
-                        text = "Finalizar Cadastro",
+                        text = "Avançar para Cadastro",
                         onClick = {
                             coroutineScope.launch {
                                 if (uiState.leadType == LeadType.STUDENT) {
-                                    // Se for aluno, apenas navegar para SignUp
-                                    onStudentSelected(unitId, unitName, goal)
+                                   
+                                    // Para alunos, não enviar lead agora.
+                                    // O lead será enviado após o cadastro do usuário (SignUp)
+                                    // para garantir que tenhamos os dados completos e o usuário criado.
+                                    onStudentSelected()
+
+                                    
                                 } else if (uiState.leadType == LeadType.GYM) {
                                     // Se for academia, enviar lead
-                                    when (val result = viewModel.submitLead(unitId, unitName, goal)) {
+                                    when (val result = viewModel.submitLead()) {
                                         is com.tadevolta.gym.data.models.Result.Success -> {
                                             onGymLeadSubmitted()
                                         }
@@ -369,7 +688,7 @@ fun OnboardingLeadDetailsScreen(
                         }
                     )
                     Text(
-                        text = "PASSO 3 DE 3",
+                        text = "PASSO 4 DE 4",
                         style = MaterialTheme.typography.labelSmall.copy(
                             color = MutedForegroundDark
                         )

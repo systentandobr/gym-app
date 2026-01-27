@@ -25,7 +25,14 @@ data class OnboardingLeadUiState(
     val state: String = "",
     val averageStudents: String? = null,
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    // Campos adicionais para "Seguir sem Unidade"
+    val responsibleName: String = "",
+    val responsiblePhone: String = "",
+    val responsibleEmail: String = "",
+    val manualAddress: String = "",
+    val manualCoordinates: Pair<Double, Double>? = null,
+    val cameFromWithoutUnit: Boolean = false // Flag para indicar que veio de "Seguir sem Unidade"
 )
 
 @HiltViewModel
@@ -68,8 +75,50 @@ class OnboardingLeadViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(averageStudents = range)
     }
     
+    fun updateResponsibleName(name: String) {
+        _uiState.value = _uiState.value.copy(responsibleName = name)
+    }
+    
+    fun updateResponsiblePhone(phone: String) {
+        _uiState.value = _uiState.value.copy(responsiblePhone = phone)
+    }
+    
+    fun updateResponsibleEmail(email: String) {
+        _uiState.value = _uiState.value.copy(responsibleEmail = email)
+    }
+    
+    fun setManualAddress(address: String, coordinates: Pair<Double, Double>? = null) {
+        _uiState.value = _uiState.value.copy(
+            manualAddress = address,
+            manualCoordinates = coordinates,
+            cameFromWithoutUnit = true,
+            address = address // Pré-preencher endereço também
+        )
+    }
+    
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+    
+    /**
+     * Sincroniza dados do OnboardingViewModel
+     * Deve ser chamado quando a tela OnboardingLeadDetailsScreen é exibida
+     */
+    fun syncFromOnboardingViewModel(onboardingViewModel: OnboardingViewModel) {
+        val manualAddress = onboardingViewModel.uiState.value.manualAddress
+        if (manualAddress.isNotBlank()) {
+            setManualAddress(manualAddress)
+        }
+    }
+    
+    suspend fun submitLead(
+        onboardingViewModel: OnboardingViewModel
+    ): Result<LeadResponse> {
+        val unitId = onboardingViewModel.getSelectedUnitId()
+        val unitName = onboardingViewModel.getSelectedUnitName()
+        val goal = onboardingViewModel.getSelectedGoal()
+        
+        return submitLead(unitId, unitName, goal)
     }
     
     suspend fun submitLead(
@@ -134,6 +183,25 @@ class OnboardingLeadViewModel @Inject constructor(
             put("address", state.address)
             state.averageStudents?.let { put("averageStudents", it) }
             goal?.let { put("goal", it) }
+            
+            // Campos adicionais quando veio de "Seguir sem Unidade"
+            if (state.cameFromWithoutUnit) {
+                if (state.responsibleName.isNotBlank()) {
+                    put("responsibleName", state.responsibleName)
+                }
+                if (state.responsiblePhone.isNotBlank()) {
+                    put("responsiblePhone", state.responsiblePhone)
+                }
+                if (state.responsibleEmail.isNotBlank()) {
+                    put("responsibleEmail", state.responsibleEmail)
+                }
+                if (state.manualAddress.isNotBlank()) {
+                    put("manualAddress", state.manualAddress)
+                }
+                state.manualCoordinates?.let { (lat, lng) ->
+                    put("manualCoordinates", "$lat,$lng")
+                }
+            }
         }
         
         // Criar LeadRequest

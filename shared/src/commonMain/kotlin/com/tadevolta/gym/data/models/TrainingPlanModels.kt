@@ -19,6 +19,7 @@ data class TrainingPlan(
     val exercises: List<Exercise> = emptyList(),
     val startDate: String,
     val endDate: String? = null,
+    @Serializable(with = TrainingPlanStatusSerializer::class)
     val status: TrainingPlanStatus,
     val progress: TrainingPlanProgress? = null,
     val isTemplate: Boolean = false,

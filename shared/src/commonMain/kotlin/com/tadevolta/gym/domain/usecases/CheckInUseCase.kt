@@ -18,10 +18,9 @@ class CheckInUseCase(
     ): Result<CheckIn> {
         return when (val result = checkInService.checkIn(studentId, location)) {
             is Result.Success -> {
-                // Atualizar gamificação (pontos por check-in)
-                val streak = getCurrentStreak(studentId)
-                val points = PointsCalculator.calculateCheckInPoints(streak)
-                // TODO: Adicionar pontos via gamificationService
+                // O backend já calcula e adiciona os pontos automaticamente no check-in
+                // O objeto CheckIn retornado já contém o campo 'points' com os pontos calculados
+                // incluindo bônus de streak, então não é necessário adicionar pontos separadamente
                 
                 result
             }

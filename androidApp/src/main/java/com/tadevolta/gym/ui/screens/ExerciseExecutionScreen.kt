@@ -29,21 +29,59 @@ import com.tadevolta.gym.ui.viewmodels.ExerciseExecutionViewModel
 
 @Composable
 fun ExerciseExecutionScreen(
-    workoutTitle: String = "TREINO A - INFERIORES",
-    exercise: Exercise,
     viewModel: ExerciseExecutionViewModel = hiltViewModel(),
     onPrevious: () -> Unit = {},
     onNext: () -> Unit = {},
     onClose: () -> Unit = {}
 ) {
-    val executedSets by viewModel.executedSets.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
+    val executedSets = uiState.executedSets
+    val exercise = uiState.exercise
+    val workoutTitle = uiState.workoutTitle
+    
     var currentSetIndex by remember { mutableStateOf(0) }
     var restTime by remember { mutableStateOf("01:24") }
     var totalTime by remember { mutableStateOf("24:08") }
     
-    val progressPercentage = if (exercise.sets > 0) {
-        (executedSets.size * 100) / exercise.sets
+    val progressPercentage = if (exercise?.sets ?: 0 > 0) {
+        (executedSets.count { it.completed } * 100) / (exercise?.sets ?: 1)
     } else 0
+    
+    // Mostrar loading ou erro se necessário
+    if (uiState.isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(BackgroundDark),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = PurplePrimary)
+        }
+        return
+    }
+    
+    if (uiState.error != null || exercise == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(BackgroundDark),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = uiState.error ?: "Exercício não encontrado",
+                    style = MaterialTheme.typography.bodyLarge.copy(color = Destructive)
+                )
+                TextButton(onClick = onClose) {
+                    Text("Voltar")
+                }
+            }
+        }
+        return
+    }
     
     Box(
         modifier = Modifier
@@ -180,7 +218,7 @@ fun ExerciseExecutionScreen(
             }
             
             // Séries
-            items(exercise.sets) { index ->
+            items(exercise?.sets ?: 0) { index ->
                 val set = executedSets.getOrNull(index)
                 var weight by remember { mutableStateOf(set?.executedWeight?.toString() ?: "") }
                 var reps by remember { mutableStateOf(set?.executedReps?.toString() ?: "") }

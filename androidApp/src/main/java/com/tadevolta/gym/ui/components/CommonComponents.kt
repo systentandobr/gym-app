@@ -23,9 +23,14 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import com.tadevolta.gym.data.models.*
 import com.tadevolta.gym.ui.theme.*
+import android.net.Uri
+import android.widget.VideoView
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 
 @Composable
 fun WelcomeCard(user: User?) {
@@ -66,7 +71,7 @@ fun CheckInCard(
             Spacer(modifier = Modifier.height(8.dp))
             stats?.let {
                 Text("${it.checkInsLast365Days}/365 dias")
-                Text("Streak: ${it.currentStreak} dias")
+                Text("Recorde: ${it.currentStreak} dias")
             }
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onCheckIn) {
@@ -335,7 +340,9 @@ fun SearchTextField(
     onValueChange: (String) -> Unit,
     placeholder: String = "Buscar...",
     modifier: Modifier = Modifier,
-    onLocationClick: (() -> Unit)? = null
+    onLocationClick: (() -> Unit)? = null,
+    onSearchClick: (() -> Unit)? = null,
+    isLoading: Boolean = false
 ) {
     OutlinedTextField(
         value = value,
@@ -358,17 +365,37 @@ fun SearchTextField(
                 tint = MutedForegroundDark
             )
         },
-        trailingIcon = onLocationClick?.let {
-            {
-                IconButton(onClick = it) {
-                    Icon(
-                        Icons.Default.LocationOn,
-                        contentDescription = "Localização",
-                        tint = PurplePrimary
+        trailingIcon = {
+            Row {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = PurplePrimary,
+                        strokeWidth = 2.dp
                     )
+                } else {
+                    onSearchClick?.let {
+                        IconButton(onClick = it) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "Buscar endereço",
+                                tint = PurplePrimary
+                            )
+                        }
+                    }
+                    onLocationClick?.let {
+                        IconButton(onClick = it) {
+                            Icon(
+                                Icons.Default.LocationOn,
+                                contentDescription = "Localização",
+                                tint = PurplePrimary
+                            )
+                        }
+                    }
                 }
             }
-        }
+        },
+        enabled = !isLoading
     )
 }
 
@@ -531,6 +558,109 @@ fun GradientPill(
                     fontWeight = FontWeight.Bold
                 )
             )
+        }
+    }
+}
+
+@Composable
+fun VideoPlayer(
+    videoUri: Uri,
+    modifier: Modifier = Modifier,
+    autoPlay: Boolean = true,
+    looping: Boolean = true
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    
+    AndroidView(
+        factory = { ctx ->
+            VideoView(ctx).apply {
+                setVideoURI(videoUri)
+            }
+        },
+        modifier = modifier,
+        update = { videoView ->
+            videoView.setVideoURI(videoUri)
+            if (autoPlay) {
+                videoView.start()
+            }
+            if (looping) {
+                videoView.setOnCompletionListener {
+                    videoView.start()
+                }
+            }
+        }
+    )
+    
+    DisposableEffect(videoUri) {
+        onDispose {
+            // Cleanup se necessário
+        }
+    }
+}
+
+enum class WarningType {
+    WARNING, INFO, ERROR
+}
+
+@Composable
+fun WarningCard(
+    title: String,
+    message: String,
+    type: WarningType = WarningType.WARNING,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = when (type) {
+        WarningType.WARNING -> Color(0xFFFF9800).copy(alpha = 0.1f) // Laranja claro
+        WarningType.INFO -> Color(0xFF2196F3).copy(alpha = 0.1f) // Azul claro
+        WarningType.ERROR -> Color(0xFFF44336).copy(alpha = 0.1f) // Vermelho claro
+    }
+    
+    val iconColor = when (type) {
+        WarningType.WARNING -> Color(0xFFFF9800) // Laranja
+        WarningType.INFO -> Color(0xFF2196F3) // Azul
+        WarningType.ERROR -> Color(0xFFF44336) // Vermelho
+    }
+    
+    val icon = when (type) {
+        WarningType.WARNING -> Icons.Default.Warning
+        WarningType.INFO -> Icons.Default.Info
+        WarningType.ERROR -> Icons.Default.Error
+    }
+    
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(24.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MutedForegroundDark
+                    )
+                )
+            }
         }
     }
 }

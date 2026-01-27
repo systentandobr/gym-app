@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.tadevolta.gym.data.models.Result
 import com.tadevolta.gym.data.models.User
 import com.tadevolta.gym.data.repositories.AuthRepository
+import com.tadevolta.gym.data.repositories.UserSessionStorage
 import com.tadevolta.gym.utils.config.EnvironmentConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +24,8 @@ data class LoginUiState(
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val userSessionStorage: UserSessionStorage
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -52,6 +54,12 @@ class LoginViewModel @Inject constructor(
             
             when (val result = authRepository.login(email, password, domain)) {
                 is Result.Success -> {
+                    // Salvar credenciais em cache após login bem-sucedido
+                    userSessionStorage.saveCredentials(
+                        username = email,
+                        email = email,
+                        password = password
+                    )
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         isLoginSuccessful = true

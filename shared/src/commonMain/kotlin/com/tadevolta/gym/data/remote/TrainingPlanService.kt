@@ -33,16 +33,23 @@ class TrainingPlanServiceImpl(
                 studentId?.let { parameter("studentId", it) }
                 status?.let { parameter("status", it) }
             }
-            // A API retorna um objeto com plans, total, page, limit
-            val apiResponse: ApiResponse<TrainingPlansResponse> = response.body()
             
-            if (apiResponse.success && apiResponse.data != null) {
-                Result.Success(apiResponse.data.plans)
-            } else {
-                Result.Error(Exception(apiResponse.error ?: "Erro ao buscar planos de treino"))
+            // Tratar erros HTTP
+            if (response.status.value >= 400) {
+                val errorBody = try {
+                    response.body<String>()
+                } catch (e: Exception) {
+                    null
+                }
+                return Result.Error(Exception("Erro ao buscar planos de treino: ${errorBody ?: "Erro do servidor"}"))
             }
+            
+            // A API retorna diretamente TrainingPlansResponse com data, total, page, limit
+            val plansResponse: TrainingPlansResponse = response.body()
+            Result.Success(plansResponse.data)
         } catch (e: Exception) {
-            Result.Error(e)
+            // Em caso de erro de deserialização, retornar lista vazia ao invés de quebrar
+            Result.Success(emptyList())
         }
     }
     

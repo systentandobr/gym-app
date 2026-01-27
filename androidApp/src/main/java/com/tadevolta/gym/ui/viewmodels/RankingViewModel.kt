@@ -78,15 +78,42 @@ class RankingViewModel @Inject constructor(
         }
     }
     
+    private val _shareableText = MutableStateFlow<String?>(null)
+    val shareableText: StateFlow<String?> = _shareableText.asStateFlow()
+    
     fun shareProgress() {
         viewModelScope.launch {
             val userId = _userGamificationData.value?.userId ?: return@launch
             when (val result = gamificationService.shareProgress(userId)) {
                 is com.tadevolta.gym.data.models.Result.Success -> {
-                    // TODO: Implementar compartilhamento (Intent para compartilhar)
+                    val shareableProgress = result.data
+                    val stats = shareableProgress.stats
+                    
+                    // Formatar texto para compartilhamento
+                    val shareText = buildString {
+                        append("🏋️ Meu Progresso na Academia!\n\n")
+                        append("📊 Estatísticas:\n")
+                        append("• Nível: ${stats.level}\n")
+                        append("• Pontos Totais: ${stats.totalPoints}\n")
+                        append("• Check-ins: ${stats.totalCheckIns}\n")
+                        append("• Sequência Atual: ${stats.currentStreak} dias\n")
+                        append("• Treinos Completos: ${stats.completedWorkouts}\n")
+                        append("• Exercícios Completos: ${stats.completedExercises}\n\n")
+                        if (shareableProgress.text.isNotBlank()) {
+                            append(shareableProgress.text)
+                        }
+                    }
+                    
+                    _shareableText.value = shareText
                 }
-                else -> {}
+                else -> {
+                    _shareableText.value = null
+                }
             }
         }
+    }
+    
+    fun clearShareableText() {
+        _shareableText.value = null
     }
 }

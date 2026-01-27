@@ -25,7 +25,9 @@ fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
     onNavigateToTrainingPlan: (String) -> Unit = {},
     onNavigateToCheckIn: () -> Unit = {},
-    onNavigateToRanking: () -> Unit = {}
+    onNavigateToRanking: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
+    onNavigateToTrainingPlans: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     
@@ -43,7 +45,8 @@ fun DashboardScreen(
             item {
                 DashboardHeader(
                     userName = uiState.user?.name ?: "Aluno",
-                    hasNotification = true
+                    hasNotification = true,
+                    onAvatarClick = onNavigateToProfile
                 )
             }
             
@@ -53,6 +56,16 @@ fun DashboardScreen(
                     onStart = {
                         uiState.currentTrainingPlan?.let {
                             onNavigateToTrainingPlan(it.id)
+                        }
+                    },
+                    onCardClick = {
+                        uiState.studentId?.let { studentId ->
+                            onNavigateToTrainingPlans(studentId)
+                        } ?: run {
+                            // Fallback: se não tiver studentId, usar o planId se existir
+                            uiState.currentTrainingPlan?.let {
+                                onNavigateToTrainingPlan(it.id)
+                            }
                         }
                     }
                 )

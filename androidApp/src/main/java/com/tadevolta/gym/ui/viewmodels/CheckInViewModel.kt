@@ -62,28 +62,56 @@ class CheckInViewModel @Inject constructor(
     
     private fun loadCheckInData() {
         viewModelScope.launch {
-            val user = authRepository.getCachedUser() ?: when (val result = authRepository.getCurrentUser()) {
-                is com.tadevolta.gym.data.models.Result.Success -> result.data
-                else -> return@launch
-            }
-            
-            // Obter studentId
-            val studentId = getStudentId(user.id, trainingPlanRepository)
-            
-            // Carregar stats
-            when (val result = checkInService.getCheckInStats(studentId)) {
-                is com.tadevolta.gym.data.models.Result.Success -> {
-                    _uiState.value = _uiState.value.copy(checkInStats = result.data)
+            try {
+                val user = authRepository.getCachedUser() ?: when (val result = authRepository.getCurrentUser()) {
+                    is com.tadevolta.gym.data.models.Result.Success -> result.data
+                    else -> return@launch
                 }
-                else -> {}
-            }
-            
-            // Carregar histórico
-            when (val result = checkInService.getCheckInHistory(studentId, 30)) {
-                is com.tadevolta.gym.data.models.Result.Success -> {
-                    _uiState.value = _uiState.value.copy(checkInHistory = result.data.checkIns)
+                
+                // Obter studentId
+                val studentId = getStudentId(user.id, trainingPlanRepository)
+                
+                // Carregar stats - sempre retorna Success (mesmo que vazio em caso de erro)
+                when (val result = checkInService.getCheckInStats(studentId)) {
+                    is com.tadevolta.gym.data.models.Result.Success -> {
+                        _uiState.value = _uiState.value.copy(checkInStats = result.data)
+                    }
+                    is com.tadevolta.gym.data.models.Result.Error -> {
+                        // Em caso de erro, usar stats vazios
+                        _uiState.value = _uiState.value.copy(checkInStats = CheckInStats(
+                            totalCheckIns = 0,
+                            currentStreak = 0,
+                            longestStreak = 0,
+                            checkInsThisYear = 0,
+                            checkInsLast365Days = 0
+                        ))
+                    }
+                    else -> {}
                 }
-                else -> {}
+                
+                // Carregar histórico - sempre retorna Success (mesmo que vazio em caso de erro)
+                when (val result = checkInService.getCheckInHistory(studentId, 30)) {
+                    is com.tadevolta.gym.data.models.Result.Success -> {
+                        _uiState.value = _uiState.value.copy(checkInHistory = result.data.checkIns)
+                    }
+                    is com.tadevolta.gym.data.models.Result.Error -> {
+                        // Em caso de erro, usar histórico vazio
+                        _uiState.value = _uiState.value.copy(checkInHistory = emptyList())
+                    }
+                    else -> {}
+                }
+            } catch (e: Exception) {
+                // Em caso de erro inesperado, garantir que a UI não quebre
+                _uiState.value = _uiState.value.copy(
+                    checkInStats = CheckInStats(
+                        totalCheckIns = 0,
+                        currentStreak = 0,
+                        longestStreak = 0,
+                        checkInsThisYear = 0,
+                        checkInsLast365Days = 0
+                    ),
+                    checkInHistory = emptyList()
+                )
             }
         }
     }
@@ -96,34 +124,13 @@ class CheckInViewModel @Inject constructor(
             // Se não tem unitId, tentar do User
             val finalUnitId = unitId ?: authRepository.getCachedUser()?.unitId
             
+            // Não fazer chamada de API sem coordenadas
+            // A validação de localização será feita no backend durante o check-in
+            // Se precisar da localização da unidade no futuro, pode ser armazenada
+            // quando a unidade é selecionada no onboarding ou buscar com outro endpoint
             if (finalUnitId != null) {
-                // Buscar localização da unidade via FranchiseService
-                // Buscar unidades próximas sem coordenadas para encontrar a unidade selecionada
-                when (val result = franchiseService.findNearby(
-                    lat = null,
-                    lng = null,
-                    marketSegment = "gym",
-                    radius = 1000, // Raio grande para encontrar a unidade
-                    limit = 100
-                )) {
-                    is com.tadevolta.gym.data.models.Result.Success -> {
-                        // Encontrar a unidade selecionada na lista
-                        val selectedFranchise = result.data.find { it.unitId == finalUnitId }
-                        selectedFranchise?.let { franchise ->
-                            val unitLocation = LocationModel(
-                                lat = franchise.location.lat,
-                                lng = franchise.location.lng
-                            )
-                            _uiState.value = _uiState.value.copy(
-                                selectedUnitLocation = unitLocation,
-                                selectedUnitName = franchise.name
-                            )
-                        }
-                    }
-                    else -> {
-                        // Se não conseguir buscar, a validação será feita no backend
-                    }
-                }
+                // Por enquanto, apenas armazenar o nome da unidade
+                // A validação de localização será feita no backend quando o check-in for realizado
             }
         }
     }

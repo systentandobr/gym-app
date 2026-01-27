@@ -65,6 +65,7 @@ data class UnitItem(
     val id: String,
     val unitId: String,
     val name: String,
+    val owner: FranchiseOwner,
     val distance: String, // Formatado como "5.2 km"
     val address: String,
     val city: String,
@@ -81,13 +82,14 @@ data class UnitItem(
                 address = franchise.location.address,
                 city = franchise.location.city,
                 state = franchise.location.state,
+                owner = franchise.owner,
                 tags = franchise.marketSegments
             )
         }
         
         private fun formatDistance(km: Double): String {
             return when {
-                km < 1 -> "${(km * 1000).toInt()} m"
+                km < 1 -> "${(km * 50).toInt()} m"
                 else -> String.format("%.1f km", km)
             }
         }

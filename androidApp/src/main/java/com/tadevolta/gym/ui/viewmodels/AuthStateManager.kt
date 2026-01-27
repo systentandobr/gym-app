@@ -20,6 +20,22 @@ class AuthStateManager @Inject constructor(
     
     init {
         checkAuthState()
+        // Observar mudanças no estado de autenticação do AuthRepository
+        viewModelScope.launch {
+            authRepository.authState.collect { authState ->
+                when (authState) {
+                    is com.tadevolta.gym.utils.auth.AuthState.Unauthenticated -> {
+                        _isAuthenticated.value = false
+                    }
+                    is com.tadevolta.gym.utils.auth.AuthState.Authenticated -> {
+                        _isAuthenticated.value = true
+                    }
+                    else -> {
+                        // Loading ou Error - não mudar estado de autenticação
+                    }
+                }
+            }
+        }
     }
     
     private fun checkAuthState() {

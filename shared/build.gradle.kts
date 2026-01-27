@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization") version "1.9.24"
@@ -68,10 +71,23 @@ android {
     namespace = "com.tadevolta.gym.shared"
     compileSdk = 34
     
+    // Ler local.properties - método alternativo robusto
+    val sysSegurancaApiKey = run {
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            val properties = Properties()
+            FileInputStream(localPropertiesFile).use { properties.load(it) }
+            properties.getProperty("SYS_SEGURANCA_API_KEY", "")
+        } else {
+            ""
+        }
+    }
+    
     defaultConfig {
         minSdk = 24
         buildConfigField("String", "API_BASE_URL", "\"https://api-prd.systentando.com\"")
         buildConfigField("String", "SYS_SEGURANCA_BASE_URL", "\"https://auth.systentando.com\"")
+        buildConfigField("String", "SYS_SEGURANCA_API_KEY", "\"$sysSegurancaApiKey\"")
     }
     
     buildFeatures {

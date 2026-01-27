@@ -31,18 +31,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tadevolta.gym.ui.components.*
 import com.tadevolta.gym.ui.theme.*
-import com.tadevolta.gym.ui.viewmodels.OnboardingViewModel
+import com.tadevolta.gym.ui.viewmodels.OnboardingSharedViewModel
 import com.tadevolta.gym.utils.LocationHelper
 
 @Composable
 fun OnboardingUnitScreen(
-    viewModel: OnboardingViewModel = hiltViewModel(),
-    onNext: (String, String) -> Unit = { _, _ -> },
-    onNavigateToSignUp: (String, String) -> Unit = { _, _ -> }
+    viewModel: OnboardingSharedViewModel = hiltViewModel(),
+    onNext: () -> Unit = {},
+    onNavigateToSignUp: () -> Unit = {},
+    onNavigateToLogin: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val filteredUnits = uiState.filteredUnits
@@ -50,6 +52,8 @@ fun OnboardingUnitScreen(
     val locationHelper = remember { LocationHelper(context) }
     val coroutineScope = rememberCoroutineScope()
     var showLocationPermissionModal by remember { mutableStateOf(false) }
+    
+    // Não mostrar campo manual automaticamente - só após tentar buscar por localização
     
     // Launcher para permissão de localização
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -66,19 +70,21 @@ fun OnboardingUnitScreen(
                 val location = locationHelper.getCurrentLocation()
                 location?.let {
                     viewModel.updateLocation(it.latitude, it.longitude)
-                } ?: run {
-                    // Se não conseguir obter localização, tentar carregar sem coordenadas
-                    viewModel.loadNearbyUnits()
                 }
+                // Não carregar unidades sem coordenadas - a API requer lat/lng
             }
         }
     }
     
-    // Carregar unidades sem localização se não tiver permissão
+    // Verificar permissão e mostrar modal automaticamente se necessário
     LaunchedEffect(Unit) {
         if (!locationHelper.hasLocationPermission()) {
-            // Carregar unidades sem coordenadas
-            viewModel.loadNearbyUnits()
+            // Mostrar modal de permissão após um pequeno delay
+            kotlinx.coroutines.delay(1000)
+            if (!locationHelper.hasLocationPermission()) {
+                showLocationPermissionModal = true
+            }
+            return@LaunchedEffect
         } else {
             // Se já tiver permissão, buscar localização
             coroutineScope.launch {
@@ -102,7 +108,7 @@ fun OnboardingUnitScreen(
         ) {
             // Progress Indicator
             item {
-                ProgressIndicator(currentStep = 1, totalSteps = 3)
+                ProgressIndicator(currentStep = 1, totalSteps = 4)
             }
             
             // Título
@@ -130,37 +136,95 @@ fun OnboardingUnitScreen(
                 }
             }
             
-            // Campo de busca
+            // Campo de busca consolidado
             item {
-                Box(
-                    modifier = if (uiState.requiresLocation) {
-                        Modifier.clickable { showLocationPermissionModal = true }
-                    } else {
-                        Modifier
-                    }
-                ) {
-                    SearchTextField(
-                        value = uiState.searchQuery,
-                        onValueChange = { viewModel.updateSearchQuery(it) },
-                        placeholder = if (uiState.requiresLocation) {
-                            "Clique aqui para permitir localização..."
+                val placeholder = when {
+                    !locationHelper.hasLocationPermission() && uiState.currentLatitude == null -> 
+                        "Clique para permitir localização..."
+                    uiState.units.isEmpty() && !uiState.isLoading -> 
+                        "Digite um endereço para buscar unidades..."
+                    else -> 
+                        "Buscar academia ou box..."
+                }
+                
+                SearchTextField(
+                    value = uiState.searchQuery,
+                    onValueChange = { viewModel.updateSearchQuery(it) },
+                    placeholder = placeholder,
+                    isLoading = uiState.isGeocoding,
+                    onLocationClick = {
+                        if (!locationHelper.hasLocationPermission()) {
+                            showLocationPermissionModal = true
                         } else {
-                            "Buscar academia ou box..."
-                        },
-                        onLocationClick = {
-                            if (!locationHelper.hasLocationPermission()) {
-                                showLocationPermissionModal = true
-                            } else {
-                                // Se já tiver permissão, buscar localização
-                                coroutineScope.launch {
-                                    val location = locationHelper.getCurrentLocation()
-                                    location?.let {
-                                        viewModel.updateLocation(it.latitude, it.longitude)
-                                    }
+                            coroutineScope.launch {
+                                val location = locationHelper.getCurrentLocation()
+                                location?.let {
+                                    viewModel.updateLocation(it.latitude, it.longitude)
                                 }
                             }
                         }
-                    )
+                    },
+                    onSearchClick = {
+                        if (uiState.searchQuery.isNotBlank()) {
+                            coroutineScope.launch {
+                                viewModel.searchAddressOrFilter(
+                                    uiState.searchQuery,
+                                    locationHelper
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+            
+            // Card de Localização Necessária - mostrar logo no início se não tiver coordenadas
+            if (!uiState.isLoading && 
+                (uiState.currentLatitude == null || uiState.currentLongitude == null) &&
+                (!locationHelper.hasLocationPermission() || uiState.requiresLocation)) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showLocationPermissionModal = true },
+                        colors = CardDefaults.cardColors(containerColor = CardDark),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = PurplePrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Localização Necessária",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                Text(
+                                    text = "Precisamos da sua localização para encontrar unidades próximas. Toque aqui para permitir o acesso.",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = MutedForegroundDark
+                                    )
+                                )
+                            }
+                            Icon(
+                                Icons.Default.ArrowForward,
+                                contentDescription = "Permitir acesso",
+                                tint = PurplePrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
             }
             
@@ -178,69 +242,21 @@ fun OnboardingUnitScreen(
                 }
             }
             
-            // Erro - se requer localização, mostrar card especial
-            if (uiState.error != null && !uiState.isLoading) {
-                if (uiState.requiresLocation) {
-                    // Card especial para erro de localização
-                    item {
-                        Card(
+            // Erro genérico (não relacionado a localização)
+            if (uiState.error != null && !uiState.isLoading && !uiState.requiresLocation) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = CardDark),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { showLocationPermissionModal = true },
-                            colors = CardDefaults.cardColors(containerColor = CardDark),
-                            shape = RoundedCornerShape(16.dp)
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.LocationOn,
-                                    contentDescription = null,
-                                    tint = PurplePrimary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Localização Necessária",
-                                        style = MaterialTheme.typography.titleSmall.copy(
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    )
-                                    uiState.error?.let { error ->
-                                        Text(
-                                            text = error,
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                color = MutedForegroundDark
-                                            )
-                                        )
-                                    }
-                                }
-                                Icon(
-                                    Icons.Default.ArrowForward,
-                                    contentDescription = "Permitir acesso",
-                                    tint = PurplePrimary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    // Erro genérico
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = CardDark),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -266,12 +282,69 @@ fun OnboardingUnitScreen(
                                         )
                                     }
                                 }
+                            }
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 TextButton(onClick = { 
                                     viewModel.loadNearbyUnits() 
                                 }) {
                                     Text("Tentar novamente", color = PurplePrimary)
                                 }
                             }
+                        }
+                    }
+                }
+            }
+            
+            // Opção de continuar sem unidade
+            if (!uiState.isLoading && uiState.units.isEmpty() && uiState.showContinueWithoutUnit && uiState.hasTriedLocationSearch) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = CardDark),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = PurplePrimary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Não encontramos unidades próximas",
+                                        style = MaterialTheme.typography.titleSmall.copy(
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    )
+                                    Text(
+                                        text = "Você pode continuar sem selecionar uma unidade e fornecer os dados da sua academia para captura de lead.",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = MutedForegroundDark
+                                        )
+                                    )
+                                }
+                            }
+                            GradientButton(
+                                text = "Seguir sem Unidade",
+                                onClick = {
+                                    // Navegar para a próxima etapa do onboarding (Goal)
+                                    onNext()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                 }
@@ -331,18 +404,8 @@ fun OnboardingUnitScreen(
             }
             
             // Lista de unidades
-            if (!uiState.isLoading && uiState.error == null) {
-                if (filteredUnits.isEmpty()) {
-                    item {
-                        Text(
-                            text = "Nenhuma academia ou unidade encontrada",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = MutedForegroundDark
-                            ),
-                            modifier = Modifier.padding(16.dp)
-                        )
-                    }
-                } else {
+            if (!uiState.isLoading && uiState.error == null && uiState.hasTriedLocationSearch) {
+                if (!filteredUnits.isEmpty()) {
                     items(filteredUnits) { unit ->
                     SelectableCard(
                         selected = uiState.selectedUnit?.id == unit.id,
@@ -437,12 +500,10 @@ fun OnboardingUnitScreen(
                     GradientButton(
                         text = "Próxima Etapa",
                         onClick = {
-                            uiState.selectedUnit?.let { unit ->
-                                // Passar unitId e unitName para próxima tela
-                                onNext(unit.unitId, unit.name)
-                            }
+                            // Dados já estão no ViewModel, apenas navegar
+                            onNext()
                         },
-                        enabled = uiState.selectedUnit != null,
+                        enabled = uiState.selectedUnit != null || uiState.showContinueWithoutUnit,
                         icon = {
                             Icon(
                                 Icons.Default.ArrowForward,
@@ -453,11 +514,25 @@ fun OnboardingUnitScreen(
                         }
                     )
                     Text(
-                        text = "PASSO 1 DE 3",
+                        text = "PASSO 1 DE 4",
                         style = MaterialTheme.typography.labelSmall.copy(
                             color = MutedForegroundDark
                         )
                     )
+                    
+                    // Link para usuários que já têm login
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(
+                        onClick = onNavigateToLogin,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Já tenho uma conta",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = PurplePrimary
+                            )
+                        )
+                    }
                 }
             }
         }

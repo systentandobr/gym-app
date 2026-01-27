@@ -11,6 +11,7 @@ import com.tadevolta.gym.domain.usecases.GetTrainingPlanUseCase
 import com.tadevolta.gym.utils.LocationHelper
 import com.tadevolta.gym.utils.config.EnvironmentConfig
 import com.tadevolta.gym.data.remote.createHttpClient
+import dagger.Lazy
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -76,9 +77,16 @@ object AppModule {
         client: HttpClient,
         tokenStorage: SecureTokenStorage
     ): UserService {
-        return UserServiceImpl(client) { 
-            kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
-        }
+        // Não injetar AuthRepository aqui para evitar dependência circular
+        // O UserServiceImpl aceita authRepository como opcional
+        // Se necessário, pode ser injetado posteriormente ou usado via Lazy em outro lugar
+        return UserServiceImpl(
+            client = client,
+            tokenProvider = { 
+                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+            },
+            authRepository = null // Será usado sem retry automático, mas evita ciclo de dependência
+        )
     }
     
     @Provides
@@ -152,11 +160,12 @@ object AppModule {
     @Singleton
     fun provideAuthRepository(
         authService: AuthService,
-        userService: UserService,
+        userService: Lazy<UserService>,
         tokenStorage: SecureTokenStorage,
         userSessionStorage: UserSessionStorage
     ): AuthRepository {
-        return AuthRepository(authService, userService, tokenStorage, userSessionStorage)
+        // Usar Lazy para quebrar dependência circular com UserService
+        return AuthRepository(authService, userService.get(), tokenStorage, userSessionStorage)
     }
     
     @Provides
@@ -191,5 +200,16 @@ object AppModule {
     ): LeadService {
         // Não precisa de tokenProvider pois é endpoint público
         return LeadServiceImpl(client)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideStudentService(
+        client: HttpClient,
+        tokenStorage: SecureTokenStorage
+    ): StudentService {
+        return StudentServiceImpl(client) { 
+            kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+        }
     }
 }
