@@ -74,7 +74,7 @@ fun DashboardScreen(
             // Progresso Anual
             item {
                 AnnualProgressCard(
-                    currentDays = uiState.checkInStats?.checkInsLast365Days ?: 10,
+                    currentDays = uiState.checkInStats?.checkInsLast365Days ?: 0,
                     percentage = 3
                 )
             }

@@ -102,6 +102,10 @@ data class OnboardingSharedUiState(
     val error: String? = null,
     val isSignUpSuccessful: Boolean = false,
     
+    // Validações de campos
+    val fieldErrors: Map<String, String> = emptyMap(),
+    val missingRequiredFields: List<String> = emptyList(),
+    
     // Estados de criação de aluno
     val isCreatingStudent: Boolean = false,
     val studentCreationError: String? = null,
@@ -659,7 +663,19 @@ class OnboardingSharedViewModel @Inject constructor(
     // ========== Métodos de SignUp ==========
     
     fun updateName(name: String) {
-        _uiState.value = _uiState.value.copy(name = name, error = null)
+        val fieldErrors = _uiState.value.fieldErrors.toMutableMap()
+        // Validar se tem pelo menos 2 palavras
+        val words = name.trim().split("\\s+".toRegex()).filter { it.isNotBlank() }
+        if (words.size < 2 && name.isNotBlank()) {
+            fieldErrors["name"] = "O sobrenome é obrigatório. Por favor, informe seu nome completo."
+        } else {
+            fieldErrors.remove("name")
+        }
+        _uiState.value = _uiState.value.copy(
+            name = name, 
+            error = null,
+            fieldErrors = fieldErrors
+        )
     }
     
     fun updateEmail(email: String) {
@@ -733,7 +749,9 @@ class OnboardingSharedViewModel @Inject constructor(
         if (current < _uiState.value.totalSteps && canProceedToNextStep()) {
             _uiState.value = _uiState.value.copy(
                 currentStep = current + 1,
-                error = null
+                error = null,
+                missingRequiredFields = emptyList(),
+                fieldErrors = emptyMap()
             )
         }
     }
@@ -754,9 +772,44 @@ class OnboardingSharedViewModel @Inject constructor(
     
     fun validateStep(step: Int): Boolean {
         val state = _uiState.value
+        val missingFields = mutableListOf<String>()
+        val fieldErrors = mutableMapOf<String, String>()
+        
         return when (step) {
             1 -> {
-                state.name.isNotBlank() &&
+                // Validar nome completo (mínimo 2 palavras)
+                val nameWords = state.name.trim().split("\\s+".toRegex()).filter { it.isNotBlank() }
+                if (state.name.isBlank()) {
+                    missingFields.add("Nome completo")
+                } else if (nameWords.size < 2) {
+                    fieldErrors["name"] = "O sobrenome é obrigatório. Por favor, informe seu nome completo."
+                }
+                
+                if (state.email.isBlank()) {
+                    missingFields.add("E-mail")
+                } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(state.email).matches()) {
+                    fieldErrors["email"] = "E-mail inválido"
+                }
+                
+                if (state.password.isBlank()) {
+                    missingFields.add("Senha")
+                } else if (state.password.length < 6) {
+                    fieldErrors["password"] = "Senha deve ter pelo menos 6 caracteres"
+                }
+                
+                if (state.confirmPassword.isBlank()) {
+                    missingFields.add("Confirmar senha")
+                } else if (state.password != state.confirmPassword) {
+                    fieldErrors["confirmPassword"] = "As senhas não coincidem"
+                }
+                
+                _uiState.value = _uiState.value.copy(
+                    missingRequiredFields = missingFields,
+                    fieldErrors = fieldErrors
+                )
+                
+                missingFields.isEmpty() && fieldErrors.isEmpty() && 
+                state.name.isNotBlank() && nameWords.size >= 2 &&
                 state.email.isNotBlank() &&
                 android.util.Patterns.EMAIL_ADDRESS.matcher(state.email).matches() &&
                 state.password.isNotBlank() &&
@@ -764,6 +817,22 @@ class OnboardingSharedViewModel @Inject constructor(
                 state.password == state.confirmPassword
             }
             2 -> {
+                if (state.address.isBlank()) missingFields.add("Endereço")
+                if (state.city.isBlank()) missingFields.add("Cidade")
+                if (state.state.isBlank()) missingFields.add("Estado")
+                if (state.zipCode.isBlank()) missingFields.add("CEP")
+                if (state.neighborhood.isBlank()) missingFields.add("Bairro")
+                if (state.localNumber.isBlank()) missingFields.add("Número local")
+                if (state.latitude == null || state.longitude == null) {
+                    missingFields.add("Localização (use o botão 'Usar minha localização')")
+                }
+                
+                _uiState.value = _uiState.value.copy(
+                    missingRequiredFields = missingFields,
+                    fieldErrors = fieldErrors
+                )
+                
+                missingFields.isEmpty() &&
                 state.address.isNotBlank() &&
                 state.city.isNotBlank() &&
                 state.state.isNotBlank() &&
@@ -845,6 +914,10 @@ class OnboardingSharedViewModel @Inject constructor(
         when {
             name.isBlank() -> {
                 _uiState.value = _uiState.value.copy(error = "Nome é obrigatório")
+                return
+            }
+            name.trim().split("\\s+".toRegex()).filter { it.isNotBlank() }.size < 2 -> {
+                _uiState.value = _uiState.value.copy(error = "O sobrenome é obrigatório. Por favor, informe seu nome completo.")
                 return
             }
             email.isBlank() -> {

@@ -6,9 +6,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.*
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -27,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -143,10 +148,11 @@ fun SignUpScreen(
             Spacer(modifier = Modifier.height(24.dp))
             
             // Conteúdo da etapa atual (scrollável)
+            val scrollState = rememberScrollState()
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 when (uiState.currentStep) {
@@ -163,7 +169,8 @@ fun SignUpScreen(
                         viewModel = viewModel,
                         locationHelper = locationHelper,
                         locationPermissionLauncher = locationPermissionLauncher,
-                        coroutineScope = coroutineScope
+                        coroutineScope = coroutineScope,
+                        scrollState = scrollState
                     )
                     3 -> ReviewStep(
                         uiState = uiState,
@@ -198,6 +205,51 @@ fun SignUpScreen(
                                     color = Color.White
                                 )
                             )
+                        }
+                    }
+                }
+                
+                // Campos obrigatórios não preenchidos
+                if (uiState.missingRequiredFields.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = CardDark),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = Destructive,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Text(
+                                    text = "Campos obrigatórios não preenchidos",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        color = Destructive,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                            }
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                uiState.missingRequiredFields.forEach { field ->
+                                    Text(
+                                        text = "• $field",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = Color.White
+                                        )
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -324,10 +376,14 @@ fun SignUpScreen(
                     enabled = !uiState.isLoading && !uiState.isCreatingStudent && 
                              uiState.signUpStep != com.tadevolta.gym.ui.viewmodels.SignUpStep.COMPLETED &&
                              when (uiState.currentStep) {
-                                1 -> uiState.name.isNotBlank() && 
-                                     uiState.email.isNotBlank() && 
-                                     uiState.password.isNotBlank() &&
-                                     uiState.confirmPassword.isNotBlank()
+                                1 -> {
+                                    val nameWords = uiState.name.trim().split("\\s+".toRegex()).filter { it.isNotBlank() }
+                                    uiState.name.isNotBlank() && 
+                                    nameWords.size >= 2 &&
+                                    uiState.email.isNotBlank() && 
+                                    uiState.password.isNotBlank() &&
+                                    uiState.confirmPassword.isNotBlank()
+                                }
                                 2 -> uiState.address.isNotBlank() &&
                                      uiState.city.isNotBlank() &&
                                      uiState.state.isNotBlank() &&
@@ -412,8 +468,8 @@ private fun PersonalDataStep(
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedContainerColor = InputDark,
                     focusedContainerColor = InputDark,
-                    unfocusedBorderColor = BorderDark,
-                    focusedBorderColor = PurplePrimary,
+                    unfocusedBorderColor = if (uiState.fieldErrors.containsKey("name")) Destructive else BorderDark,
+                    focusedBorderColor = if (uiState.fieldErrors.containsKey("name")) Destructive else PurplePrimary,
                     unfocusedTextColor = Color.White,
                     focusedTextColor = Color.White
                 ),
@@ -423,6 +479,16 @@ private fun PersonalDataStep(
                         contentDescription = null,
                         tint = MutedForegroundDark
                     )
+                },
+                isError = uiState.fieldErrors.containsKey("name"),
+                supportingText = uiState.fieldErrors["name"]?.let { error ->
+                    {
+                        Text(
+                            text = error,
+                            color = Destructive,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 },
                 singleLine = true
             )
@@ -646,8 +712,36 @@ private fun AddressStep(
     viewModel: OnboardingSharedViewModel,
     locationHelper: LocationHelper,
     locationPermissionLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>,
-    coroutineScope: kotlinx.coroutines.CoroutineScope
+    coroutineScope: kotlinx.coroutines.CoroutineScope,
+    scrollState: ScrollState
 ) {
+    // Animação discreta para o botão de localização
+    val infiniteTransition = rememberInfiniteTransition(label = "button_pulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.02f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+    
+    // Scroll automático para o topo quando entrar no step 2
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(300) // Pequeno delay para garantir que a UI foi renderizada
+        // Animação suave de scroll para o topo
+        val target = 0
+        val current = scrollState.value
+        val distance = target - current
+        val steps = 20
+        val stepSize = distance / steps
+        repeat(steps) {
+            scrollState.scrollTo((current + stepSize * (it + 1)).toInt())
+            kotlinx.coroutines.delay(10)
+        }
+        scrollState.scrollTo(0)
+    }
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxWidth()
@@ -660,7 +754,7 @@ private fun AddressStep(
             )
         )
         
-        // Botão para usar localização
+        // Botão para usar localização com animação discreta
         OutlinedButton(
             onClick = {
                 if (locationHelper.hasLocationPermission()) {
@@ -674,7 +768,12 @@ private fun AddressStep(
                     )
                 }
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
             enabled = !uiState.isLoadingLocation,
             colors = ButtonDefaults.outlinedButtonColors(
                 contentColor = PurplePrimary

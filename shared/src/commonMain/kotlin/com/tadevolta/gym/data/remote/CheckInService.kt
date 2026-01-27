@@ -38,13 +38,33 @@ class CheckInServiceImpl(
                 contentType(ContentType.Application.Json)
                 setBody(jsonBody)
             }
+            
+            // Tratar erro 404 separadamente
+            if (response.status.value == 404) {
+                try {
+                    val errorResponse: ErrorResponse = response.body()
+                    val errorMessage = errorResponse.formattedMessage 
+                        ?: errorResponse.message 
+                        ?: errorResponse.error 
+                        ?: "Endpoint não encontrado. Verifique se o endpoint de check-in está disponível."
+                    return Result.Error(Exception(errorMessage))
+                } catch (e: Exception) {
+                    // Se não conseguir deserializar como ErrorResponse, usar mensagem genérica
+                    return Result.Error(Exception("Endpoint de check-in não encontrado (404). Verifique se o serviço está disponível."))
+                }
+            }
+            
+            // Tentar deserializar como ApiResponse apenas se não for 404
             val apiResponse: ApiResponse<CheckIn> = response.body()
             
-            if (apiResponse.success && apiResponse.data != null) {
+            if (apiResponse.data != null) {
                 Result.Success(apiResponse.data)
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao fazer check-in"))
             }
+        } catch (e: io.ktor.serialization.JsonConvertException) {
+            // Erro de deserialização - pode ser formato inesperado da resposta
+            Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -121,7 +141,7 @@ class CheckInServiceImpl(
             
             val apiResponse: ApiResponse<CheckInHistory> = response.body()
             
-            if (apiResponse.success && apiResponse.data != null) {
+            if (apiResponse.data != null) {
                 Result.Success(apiResponse.data)
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar histórico de check-in"))

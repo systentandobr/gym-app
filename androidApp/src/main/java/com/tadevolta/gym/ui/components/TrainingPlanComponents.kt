@@ -103,11 +103,14 @@ fun ProgressGamificationCard(
 @Composable
 fun WorkoutCard(
     title: String,
+    subsession: String,
     exercises: Int,
     duration: String,
     description: String,
     iconColor: Color,
     isRecommended: Boolean = false,
+    dayOfWeek: Int? = null,
+    dayName: String? = null,
     onClick: () -> Unit
 ) {
     Card(
@@ -168,7 +171,7 @@ fun WorkoutCard(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = "$exercises exercícios",
+                                    text = "$exercises $subsession",
                                     style = MaterialTheme.typography.bodySmall.copy(
                                         color = MutedForegroundDark
                                     )
@@ -205,7 +208,7 @@ fun WorkoutCard(
                 // Botão Iniciar Treino
                 if (isRecommended) {
                     GradientButton(
-                        text = "Iniciar Treino",
+                        text = "Treinar",
                         onClick = onClick,
                         icon = {
                             Icon(
@@ -227,7 +230,7 @@ fun WorkoutCard(
                         )
                     ) {
                         Text(
-                            text = "Iniciar Treino",
+                            text = "Executar exercício",
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Bold
                             )

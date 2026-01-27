@@ -324,13 +324,54 @@ fun AppNavigation(
         
         composable("training_plan/{planId}") { backStackEntry ->
             val planId = backStackEntry.arguments?.getString("planId") ?: ""
+            // Extrair dayOfWeek de savedStateHandle se disponível
+            val dayOfWeek = backStackEntry.savedStateHandle.get<Int>("dayOfWeek")
             TrainingPlanScreen(
                 planId = planId,
+                dayOfWeek = dayOfWeek,
                 onExerciseClick = { exercise ->
-                    navController.navigate("exercise/$planId/${exercise.exerciseId ?: exercise.name}")
+                    val exerciseRoute = "exercise/$planId/${exercise.exerciseId ?: exercise.name}"
+                    navController.navigate(exerciseRoute) {
+                        launchSingleTop = true
+                    }
+                    // Passar dayOfWeek via savedStateHandle após navegação
+                    if (dayOfWeek != null) {
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                            kotlinx.coroutines.delay(100)
+                            try {
+                                val entry = navController.getBackStackEntry(exerciseRoute)
+                                entry.savedStateHandle["dayOfWeek"] = dayOfWeek
+                            } catch (e: Exception) {
+                                // Se não conseguir acessar, tentar novamente após mais tempo
+                                kotlinx.coroutines.delay(200)
+                                try {
+                                    val entry = navController.getBackStackEntry(exerciseRoute)
+                                    entry.savedStateHandle["dayOfWeek"] = dayOfWeek
+                                } catch (e2: Exception) {
+                                    // Ignorar erro se ainda não conseguir
+                                }
+                            }
+                        }
+                    }
                 },
                 onPlanClick = { clickedPlanId ->
                     navController.navigate("training_plan/$clickedPlanId")
+                },
+                onDayClick = { clickedPlanId, clickedDayOfWeek ->
+                    // Navegar para o plano e passar dayOfWeek via savedStateHandle
+                    navController.navigate("training_plan/$clickedPlanId") {
+                        launchSingleTop = true
+                    }
+                    // Aguardar um frame para garantir que a entrada foi criada
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        kotlinx.coroutines.delay(50)
+                        try {
+                            val entry = navController.getBackStackEntry("training_plan/$clickedPlanId")
+                            entry.savedStateHandle["dayOfWeek"] = clickedDayOfWeek
+                        } catch (e: Exception) {
+                            // Se não conseguir acessar, tentar novamente
+                        }
+                    }
                 }
             )
         }
@@ -346,12 +387,37 @@ fun AppNavigation(
                 },
                 onPlanClick = { planId ->
                     navController.navigate("training_plan/$planId")
+                },
+                onDayClick = { planId, dayOfWeek ->
+                    // Navegar para o plano com dayOfWeek
+                    navController.navigate("training_plan/$planId") {
+                        launchSingleTop = true
+                    }
+                    // Passar dayOfWeek via savedStateHandle
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        kotlinx.coroutines.delay(100)
+                        try {
+                            val entry = navController.getBackStackEntry("training_plan/$planId")
+                            entry.savedStateHandle["dayOfWeek"] = dayOfWeek
+                        } catch (e: Exception) {
+                            // Ignorar erro se a entrada não existir ainda
+                        }
+                    }
                 }
             )
         }
         
         composable("exercise/{planId}/{exerciseId}") { backStackEntry ->
             val planId = backStackEntry.arguments?.getString("planId") ?: ""
+            val exerciseId = backStackEntry.arguments?.getString("exerciseId") ?: ""
+            // Obter dayOfWeek do savedStateHandle se disponível
+            val dayOfWeek = backStackEntry.savedStateHandle.get<Int>("dayOfWeek")
+            
+            // Passar dayOfWeek para o ViewModel via savedStateHandle
+            if (dayOfWeek != null) {
+                backStackEntry.savedStateHandle["dayOfWeek"] = dayOfWeek
+            }
+            
             val exerciseViewModel: ExerciseExecutionViewModel = hiltViewModel()
             
             ExerciseExecutionScreen(
@@ -360,7 +426,23 @@ fun AppNavigation(
                     val previousExerciseId = exerciseViewModel.navigateToPrevious()
                     if (previousExerciseId != null) {
                         navController.navigate("exercise/$planId/$previousExerciseId") {
-                            popUpTo("exercise/$planId/${backStackEntry.arguments?.getString("exerciseId")}") { inclusive = true }
+                            popUpTo("exercise/$planId/$exerciseId") { inclusive = true }
+                            // Manter dayOfWeek na navegação
+                            if (dayOfWeek != null) {
+                                launchSingleTop = true
+                            }
+                        }
+                        // Passar dayOfWeek para o próximo exercício
+                        if (dayOfWeek != null) {
+                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                kotlinx.coroutines.delay(50)
+                                try {
+                                    val entry = navController.getBackStackEntry("exercise/$planId/$previousExerciseId")
+                                    entry.savedStateHandle["dayOfWeek"] = dayOfWeek
+                                } catch (e: Exception) {
+                                    // Ignorar erro
+                                }
+                            }
                         }
                     } else {
                         navController.popBackStack()
@@ -370,12 +452,44 @@ fun AppNavigation(
                     val nextExerciseId = exerciseViewModel.navigateToNext()
                     if (nextExerciseId != null) {
                         navController.navigate("exercise/$planId/$nextExerciseId") {
-                            popUpTo("exercise/$planId/${backStackEntry.arguments?.getString("exerciseId")}") { inclusive = true }
+                            popUpTo("exercise/$planId/$exerciseId") { inclusive = true }
+                            // Manter dayOfWeek na navegação
+                            if (dayOfWeek != null) {
+                                launchSingleTop = true
+                            }
+                        }
+                        // Passar dayOfWeek para o próximo exercício
+                        if (dayOfWeek != null) {
+                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                kotlinx.coroutines.delay(50)
+                                try {
+                                    val entry = navController.getBackStackEntry("exercise/$planId/$nextExerciseId")
+                                    entry.savedStateHandle["dayOfWeek"] = dayOfWeek
+                                } catch (e: Exception) {
+                                    // Ignorar erro
+                                }
+                            }
                         }
                     } else {
                         // Último exercício, voltar para o plano
                         navController.navigate("training_plan/$planId") {
-                            popUpTo("exercise/$planId/${backStackEntry.arguments?.getString("exerciseId")}") { inclusive = true }
+                            popUpTo("exercise/$planId/$exerciseId") { inclusive = true }
+                            // Manter dayOfWeek ao voltar
+                            if (dayOfWeek != null) {
+                                launchSingleTop = true
+                            }
+                        }
+                        // Passar dayOfWeek de volta para o plano
+                        if (dayOfWeek != null) {
+                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                kotlinx.coroutines.delay(50)
+                                try {
+                                    val entry = navController.getBackStackEntry("training_plan/$planId")
+                                    entry.savedStateHandle["dayOfWeek"] = dayOfWeek
+                                } catch (e: Exception) {
+                                    // Ignorar erro
+                                }
+                            }
                         }
                     }
                 },

@@ -69,7 +69,7 @@ sqldelight {
 
 android {
     namespace = "com.tadevolta.gym.shared"
-    compileSdk = 34
+    compileSdk = 35
     
     // Ler local.properties - método alternativo robusto
     val sysSegurancaApiKey = run {

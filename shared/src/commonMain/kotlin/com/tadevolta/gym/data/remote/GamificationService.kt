@@ -29,6 +29,20 @@ class GamificationServiceImpl(
                 }
             }
             
+            // Tratar erro 404 separadamente
+            if (response.status.value == 404) {
+                try {
+                    val errorResponse: ErrorResponse = response.body()
+                    val errorMessage = errorResponse.formattedMessage 
+                        ?: errorResponse.message 
+                        ?: errorResponse.error 
+                        ?: "Usuário não encontrado"
+                    return Result.Error(Exception(errorMessage))
+                } catch (e: Exception) {
+                    return Result.Error(Exception("Usuário não encontrado (404)"))
+                }
+            }
+            
             // Tratar erro 500 ou outros erros HTTP
             if (response.status.value >= 400) {
                 // Se houver erro do servidor, retornar erro mas não quebrar
@@ -47,6 +61,8 @@ class GamificationServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar dados de gamificação"))
             }
+        } catch (e: io.ktor.serialization.JsonConvertException) {
+            Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -61,6 +77,21 @@ class GamificationServiceImpl(
                 parameter("unitId", unitId)
                 parameter("limit", limit)
             }
+            
+            // Tratar erro 404
+            if (response.status.value == 404) {
+                try {
+                    val errorResponse: ErrorResponse = response.body()
+                    val errorMessage = errorResponse.formattedMessage 
+                        ?: errorResponse.message 
+                        ?: errorResponse.error 
+                        ?: "Ranking não encontrado"
+                    return Result.Error(Exception(errorMessage))
+                } catch (e: Exception) {
+                    return Result.Error(Exception("Ranking não encontrado (404)"))
+                }
+            }
+            
             val apiResponse: ApiResponse<List<RankingPosition>> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
@@ -68,6 +99,8 @@ class GamificationServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar ranking"))
             }
+        } catch (e: io.ktor.serialization.JsonConvertException) {
+            Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -75,11 +108,36 @@ class GamificationServiceImpl(
     
     override suspend fun getWeeklyActivity(studentId: String): Result<WeeklyActivity> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/weekly-activity") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            // Tentar primeiro com students, depois com users se falhar
+            val response = try {
+                client.get("${EnvironmentConfig.API_BASE_URL}/gamification/users/$studentId/weekly-activity") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
+                }
+            } catch (e: Exception) {
+                // Fallback para students se users falhar
+                client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/weekly-activity") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
+            
+            // Tratar erro 404
+            if (response.status.value == 404) {
+                try {
+                    val errorResponse: ErrorResponse = response.body()
+                    val errorMessage = errorResponse.formattedMessage 
+                        ?: errorResponse.message 
+                        ?: errorResponse.error 
+                        ?: "Atividade semanal não encontrada"
+                    return Result.Error(Exception(errorMessage))
+                } catch (e: Exception) {
+                    return Result.Error(Exception("Atividade semanal não encontrada (404)"))
+                }
+            }
+            
             val apiResponse: ApiResponse<WeeklyActivity> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
@@ -87,6 +145,8 @@ class GamificationServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar atividade semanal"))
             }
+        } catch (e: io.ktor.serialization.JsonConvertException) {
+            Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -99,6 +159,21 @@ class GamificationServiceImpl(
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
             }
+            
+            // Tratar erro 404
+            if (response.status.value == 404) {
+                try {
+                    val errorResponse: ErrorResponse = response.body()
+                    val errorMessage = errorResponse.formattedMessage 
+                        ?: errorResponse.message 
+                        ?: errorResponse.error 
+                        ?: "Usuário não encontrado"
+                    return Result.Error(Exception(errorMessage))
+                } catch (e: Exception) {
+                    return Result.Error(Exception("Usuário não encontrado (404)"))
+                }
+            }
+            
             val apiResponse: ApiResponse<ShareableProgress> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
@@ -106,6 +181,8 @@ class GamificationServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao gerar compartilhamento"))
             }
+        } catch (e: io.ktor.serialization.JsonConvertException) {
+            Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
             Result.Error(e)
         }

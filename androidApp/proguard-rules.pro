@@ -29,3 +29,10 @@
 
 # Keep SQLDelight
 -keep class com.tadevolta.gym.data.local.** { *; }
+
+# SLF4J - Ignorar classes ausentes (não usamos SLF4J no Android, usamos android.util.Log)
+# O ktor-client-logging referencia SLF4J, mas no Android usamos um logger customizado
+-dontwarn org.slf4j.**
+-dontwarn org.slf4j.impl.**
+# Ignorar especificamente a classe StaticLoggerBinder que está causando o erro
+-dontwarn org.slf4j.impl.StaticLoggerBinder
