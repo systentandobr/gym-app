@@ -11,6 +11,12 @@ import kotlinx.serialization.json.Json
 
 interface ExerciseService {
     suspend fun getExercise(id: String): Result<Exercise>
+    /**
+     * Busca exercício por nome (fallback temporário quando exerciseId não está disponível).
+     * Nota: Este método tenta buscar usando o nome como ID, mas pode não funcionar.
+     * A solução ideal é o backend retornar exerciseId no plano de treino.
+     */
+    suspend fun searchExerciseByName(name: String): Result<Exercise>
 }
 
 class ExerciseServiceImpl(
@@ -63,5 +69,14 @@ class ExerciseServiceImpl(
         } catch (e: Exception) {
             Result.Error(e)
         }
+    }
+    
+    override suspend fun searchExerciseByName(name: String): Result<Exercise> {
+        // Nota: Não há endpoint de busca por nome no backend atualmente.
+        // Este método retorna erro informando que exerciseId é necessário.
+        // A solução ideal é o backend preservar exerciseId ao carregar templates.
+        return Result.Error(
+            Exception("Não é possível buscar exercício por nome. O backend deve retornar exerciseId no plano de treino.")
+        )
     }
 }

@@ -60,13 +60,55 @@ class TrainingPlanServiceImpl(
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
             }
-            val apiResponse: ApiResponse<TrainingPlan> = response.body()
             
-            if (apiResponse.success && apiResponse.data != null) {
-                Result.Success(apiResponse.data)
-            } else {
-                Result.Error(Exception(apiResponse.error ?: "Erro ao buscar plano de treino"))
+            // Tratar erro 404
+            if (response.status.value == 404) {
+                try {
+                    val errorResponse: ErrorResponse = response.body()
+                    val errorMessage = errorResponse.formattedMessage 
+                        ?: errorResponse.message 
+                        ?: errorResponse.error 
+                        ?: "Plano de treino não encontrado"
+                    return Result.Error(Exception(errorMessage))
+                } catch (e: Exception) {
+                    return Result.Error(Exception("Plano de treino não encontrado (404)"))
+                }
             }
+            
+            // Tratar outros erros HTTP
+            if (response.status.value >= 400) {
+                val errorBody = try {
+                    response.body<String>()
+                } catch (e: Exception) {
+                    null
+                }
+                return Result.Error(Exception("Erro ao buscar plano de treino: ${errorBody ?: "Erro do servidor"}"))
+            }
+            
+            // Tentar deserializar diretamente como TrainingPlan primeiro
+            // A API pode retornar o objeto diretamente ou envolto em ApiResponse
+            val json = Json { ignoreUnknownKeys = true }
+            val responseText = response.bodyAsText()
+            
+            return try {
+                // Tentar deserializar como TrainingPlan diretamente
+                val trainingPlan: TrainingPlan = json.decodeFromString(responseText)
+                Result.Success(trainingPlan)
+            } catch (e: kotlinx.serialization.SerializationException) {
+                // Se falhar, tentar como ApiResponse<TrainingPlan>
+                try {
+                    val apiResponse: ApiResponse<TrainingPlan> = json.decodeFromString(responseText)
+                    if (apiResponse.success && apiResponse.data != null) {
+                        Result.Success(apiResponse.data)
+                    } else {
+                        Result.Error(Exception(apiResponse.error ?: "Erro ao buscar plano de treino"))
+                    }
+                } catch (e2: Exception) {
+                    Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
+                }
+            }
+        } catch (e: io.ktor.serialization.JsonConvertException) {
+            Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
             Result.Error(e)
         }

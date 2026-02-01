@@ -123,6 +123,13 @@ class ExerciseExecutionViewModel @Inject constructor(
                     // Isso garante que as imagens sejam sempre buscadas do catálogo atualizado
                     exercise?.exerciseId?.let { exId ->
                         loadExerciseDetails(exId)
+                    } ?: exercise?.name?.let { exerciseName ->
+                        // Fallback temporário: tentar buscar por nome quando exerciseId não está disponível
+                        // Nota: Isso só funcionará se o backend implementar busca por nome
+                        // A solução ideal é o backend preservar exerciseId ao carregar templates
+                        android.util.Log.w("ExerciseExecutionViewModel", 
+                            "exerciseId não disponível para exercício '$exerciseName'. Tentando buscar por nome...")
+                        loadExerciseDetailsByName(exerciseName)
                     }
                     
                     // Inicializar sets executados
@@ -353,6 +360,55 @@ class ExerciseExecutionViewModel @Inject constructor(
         val minutes = seconds / 60
         val secs = seconds % 60
         return String.format("%02d:%02d", minutes, secs)
+    }
+    
+    /**
+     * Carrega detalhes do exercício por nome (fallback temporário).
+     * Nota: Este método pode não funcionar se o backend não suportar busca por nome.
+     * A solução ideal é o backend retornar exerciseId no plano de treino.
+     * 
+     * @param exerciseName Nome do exercício a ser buscado
+     */
+    private fun loadExerciseDetailsByName(exerciseName: String) {
+        if (exerciseName.isBlank()) {
+            android.util.Log.w("ExerciseExecutionViewModel", "Nome do exercício é vazio")
+            return
+        }
+        
+        android.util.Log.d("ExerciseExecutionViewModel", "Tentando buscar exercício por nome: $exerciseName")
+        
+        viewModelScope.launch {
+            when (val result = exerciseService.searchExerciseByName(exerciseName)) {
+                is Result.Success -> {
+                    val exercise = result.data
+                    
+                    // Construir URLs completas das imagens
+                    val exerciseWithFullUrls = exercise.copy(
+                        images = exercise.images?.let { ImageUrlBuilder.buildImageUrls(it) },
+                        imageUrl = ImageUrlBuilder.buildImageUrl(exercise.imageUrl)
+                    )
+                    
+                    _exerciseDetails.value = exerciseWithFullUrls
+                    
+                    // Atualizar também o exercício no UI state se for o mesmo
+                    val currentExercise = _uiState.value.exercise
+                    if (currentExercise?.name == exerciseName) {
+                        _uiState.value = _uiState.value.copy(exercise = exerciseWithFullUrls)
+                    }
+                }
+                is Result.Error -> {
+                    // Em caso de erro, manter exercício inicial sem imagens (fallback)
+                    android.util.Log.w("ExerciseExecutionViewModel", 
+                        "Não foi possível buscar exercício '$exerciseName' por nome. " +
+                        "O backend deve retornar exerciseId no plano de treino. " +
+                        "Erro: ${result.exception.message}")
+                    // Não atualizar _exerciseDetails para manter null e usar fallback (ícone padrão)
+                }
+                is Result.Loading -> {
+                    // Estado de carregamento - não fazer nada
+                }
+            }
+        }
     }
     
     /**

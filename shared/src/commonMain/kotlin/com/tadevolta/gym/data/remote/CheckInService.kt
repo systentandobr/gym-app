@@ -46,18 +46,33 @@ class CheckInServiceImpl(
                     val errorMessage = errorResponse.formattedMessage 
                         ?: errorResponse.message 
                         ?: errorResponse.error 
-                        ?: "Endpoint não encontrado. Verifique se o endpoint de check-in está disponível."
+                        ?: "Endpoint de check-in não está disponível no momento."
                     return Result.Error(Exception(errorMessage))
                 } catch (e: Exception) {
-                    // Se não conseguir deserializar como ErrorResponse, usar mensagem genérica
-                    return Result.Error(Exception("Endpoint de check-in não encontrado (404). Verifique se o serviço está disponível."))
+                    // Se não conseguir deserializar como ErrorResponse, usar mensagem genérica mais clara
+                    return Result.Error(Exception(
+                        "O serviço de check-in não está disponível no momento. " +
+                        "Por favor, tente novamente mais tarde ou entre em contato com o suporte."
+                    ))
                 }
             }
             
-            // Tentar deserializar como ApiResponse apenas se não for 404
+            // Tratar outros erros HTTP antes de tentar deserializar
+            if (response.status.value >= 400) {
+                val errorBody = try {
+                    response.body<String>()
+                } catch (e: Exception) {
+                    null
+                }
+                return Result.Error(Exception(
+                    "Erro ao fazer check-in: ${errorBody ?: "Erro do servidor (${response.status.value})"}"
+                ))
+            }
+            
+            // Tentar deserializar como ApiResponse apenas se não houver erros HTTP
             val apiResponse: ApiResponse<CheckIn> = response.body()
             
-            if (apiResponse.data != null) {
+            if (apiResponse.success && apiResponse.data != null) {
                 Result.Success(apiResponse.data)
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao fazer check-in"))
