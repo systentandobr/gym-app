@@ -160,23 +160,6 @@ class OnboardingLeadViewModel @Inject constructor(
             }
         }
         
-        // Se for aluno, não enviar lead (apenas navegar para SignUp)
-        if (state.leadType == LeadType.STUDENT) {
-            return Result.Success(LeadResponse(
-                id = "",
-                unitId = unitId,
-                name = "",
-                email = "",
-                phone = "",
-                city = null,
-                state = null,
-                userType = "student",
-                marketSegment = "gym",
-                status = "new",
-                createdAt = ""
-            ))
-        }
-        
         // Preparar metadata
         val metadata = buildMap<String, String> {
             unitName?.let { put("selectedUnitName", it) }
@@ -204,25 +187,74 @@ class OnboardingLeadViewModel @Inject constructor(
             }
         }
         
-        // Criar LeadRequest
-        val leadRequest = LeadRequest(
-            name = state.gymName,
-            email = state.email,
-            phone = state.phone,
-            city = state.city,
-            state = state.state,
-            unitId = unitId,
-            marketSegment = "gym",
-            userType = "franchise",
-            objectives = goal?.let {
-                LeadObjectives(
-                    primary = it,
-                    secondary = emptyList(),
-                    interestedInFranchise = true
+        // Criar LeadRequest baseado no tipo de lead
+        val leadRequest = when (state.leadType) {
+            LeadType.GYM -> {
+                // Lead de academia - usar dados da academia
+                LeadRequest(
+                    name = state.gymName,
+                    email = state.email,
+                    phone = state.phone,
+                    city = state.city,
+                    state = state.state,
+                    unitId = unitId,
+                    marketSegment = "gym",
+                    userType = "franchise",
+                    objectives = goal?.let {
+                        LeadObjectives(
+                            primary = it,
+                            secondary = emptyList(),
+                            interestedInFranchise = false
+                        )
+                    },
+                    metadata = metadata
                 )
-            },
-            metadata = metadata
-        )
+            }
+            LeadType.STUDENT -> {
+                // Lead de aluno - este método não deveria ser usado para alunos
+                // Os dados do aluno devem ser enviados via OnboardingSharedViewModel.sendLeadAfterSignUp()
+                // Mas mantendo compatibilidade: usar dados disponíveis
+                LeadRequest(
+                    name = state.responsibleName.takeIf { it.isNotBlank() } ?: "",
+                    email = state.email,
+                    phone = state.phone,
+                    city = state.city,
+                    state = state.state,
+                    unitId = unitId,
+                    marketSegment = "gym",
+                    userType = "student",
+                    objectives = goal?.let {
+                        LeadObjectives(
+                            primary = it,
+                            secondary = emptyList(),
+                            interestedInFranchise = false
+                        )
+                    },
+                    metadata = metadata
+                )
+            }
+            null -> {
+                // Fallback: tratar como academia
+                LeadRequest(
+                    name = state.gymName,
+                    email = state.email,
+                    phone = state.phone,
+                    city = state.city,
+                    state = state.state,
+                    unitId = unitId,
+                    marketSegment = "gym",
+                    userType = "franchise",
+                    objectives = goal?.let {
+                        LeadObjectives(
+                            primary = it,
+                            secondary = emptyList(),
+                            interestedInFranchise = false
+                        )
+                    },
+                    metadata = metadata
+                )
+            }
+        }
         
         _uiState.value = state.copy(isLoading = true, error = null)
         

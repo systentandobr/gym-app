@@ -31,7 +31,7 @@ class CheckInServiceImpl(
                 }
             }
             
-            val response = client.post("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/check-ins") {
+            val response = client.post("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/check-in") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }

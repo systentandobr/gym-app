@@ -36,3 +36,24 @@
 -dontwarn org.slf4j.impl.**
 # Ignorar especificamente a classe StaticLoggerBinder que está causando o erro
 -dontwarn org.slf4j.impl.StaticLoggerBinder
+
+# Proteger código de criptografia do Android Security Crypto
+-keep class androidx.security.crypto.** { *; }
+-dontwarn androidx.security.crypto.**
+
+# Proteger classes relacionadas a criptografia
+-keep class javax.crypto.** { *; }
+-keep class java.security.** { *; }
+
+# Proteger MasterKey e EncryptedSharedPreferences
+-keep class androidx.security.crypto.MasterKey { *; }
+-keep class androidx.security.crypto.EncryptedSharedPreferences { *; }
+
+# Manter métodos de criptografia
+-keepclassmembers class * {
+    @androidx.security.crypto.* <methods>;
+}
+
+# Evitar ofuscar erros de criptografia para facilitar debug
+-keep class javax.crypto.AEADBadTagException { *; }
+-keep class java.io.IOException { *; }

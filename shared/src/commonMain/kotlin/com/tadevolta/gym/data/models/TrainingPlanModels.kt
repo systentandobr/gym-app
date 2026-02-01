@@ -54,14 +54,21 @@ data class Exercise(
     val notes: String? = null,
     // Campos para execução
     val executedSets: List<ExecutedSet>? = null,
-    val imageUrl: String? = null, // GIF ou imagem
+    val imageUrl: String? = null, // GIF ou imagem (mantido para compatibilidade)
+    val images: List<String>? = null, // Array de imagens do catálogo
     val videoUrl: String? = null,
     // Campos do catálogo de exercícios
     val description: String? = null,
     val muscleGroups: List<String>? = null,
     val equipment: List<String>? = null,
     val difficulty: ExerciseDifficulty? = null
-)
+) {
+    /**
+     * Propriedade de conveniência para obter a URL da primeira imagem.
+     * Prioriza o array `images` se disponível, caso contrário usa `imageUrl`.
+     */
+    val primaryImageUrl: String? get() = images?.firstOrNull() ?: imageUrl
+}
 
 @Serializable
 data class ExecutedSet(

@@ -21,6 +21,7 @@ data class Student(
     val emergencyContact: EmergencyContact? = null,
     val healthInfo: HealthInfo? = null,
     val subscription: StudentSubscription? = null,
+    val teamId: String? = null,
     val isActive: Boolean = true,
     val createdAt: String? = null,
     val updatedAt: String? = null
@@ -118,5 +119,7 @@ data class CreateStudentRequest(
     val gender: Gender? = null,
     val address: Address? = null,
     val emergencyContact: EmergencyContact? = null,
-    val healthInfo: HealthInfo? = null
+    val healthInfo: HealthInfo? = null,
+    val userId: String,
+    val unitId: String
 )

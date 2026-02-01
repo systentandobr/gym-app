@@ -194,9 +194,7 @@ fun AppNavigation(
                     if (uiState.showContinueWithoutUnit && uiState.manualAddress.isNotBlank()) {
                         navController.navigate(Screen.OnboardingLeadDetails.route)
                     } else {
-                        navController.navigate(Screen.SignUp.route) {
-                            popUpTo(Screen.OnboardingUnit.route) { inclusive = true }
-                        }
+                        navController.navigate(Screen.SignUp.route)
                     }
                 },
                 onNavigateToLogin = {
@@ -238,9 +236,7 @@ fun AppNavigation(
             OnboardingLeadDetailsScreen(
                 viewModel = hiltViewModel<OnboardingSharedViewModel>(parentEntry),
                 onStudentSelected = {
-                    navController.navigate(Screen.SignUp.route) {
-                        popUpTo(Screen.OnboardingUnit.route) { inclusive = true }
-                    }
+                    navController.navigate(Screen.SignUp.route)
                 },
                 onGymLeadSubmitted = {
                     navController.navigate(Screen.Login.route) {

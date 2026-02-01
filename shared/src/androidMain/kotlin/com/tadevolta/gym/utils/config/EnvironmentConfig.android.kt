@@ -7,7 +7,7 @@ import java.util.Properties
 
 actual object EnvironmentConfig {
     actual val API_BASE_URL: String = BuildConfig.API_BASE_URL
-    actual val SYS_SEGURANCA_API_KEY: String = getEnv("SYS_SEGURANCA_API_KEY", "")
+    actual val SYS_SEGURANCA_API_KEY: String = BuildConfig.SYS_SEGURANCA_API_KEY
     actual val SYS_SEGURANCA_BASE_URL: String = BuildConfig.SYS_SEGURANCA_BASE_URL
     actual val DOMAIN: String = "tadevolta-gym-app"
     
@@ -55,12 +55,12 @@ actual object EnvironmentConfig {
             }
         } catch (e: Exception) {
             // Silenciar erro - fallback não é crítico
-            Log.d("EnvironmentConfig", "Não foi possível ler local.properties em runtime: ${e.message}")
+            Log.d("EnvironmentConfig", "Não foi possível ler .properties em runtime: ${e.message}")
         }
         
         // 3. Se não encontrou, retornar defaultValue e avisar
         if (defaultValue.isBlank()) {
-            Log.w("EnvironmentConfig", "Aviso: $key não foi encontrado. Configure SYS_SEGURANCA_API_KEY em local.properties (raiz do projeto) e faça rebuild do projeto.")
+            Log.w("EnvironmentConfig", "Aviso: chave não foi encontrado. Configure KEY de segurança em .properties (raiz do projeto) e faça rebuild do projeto.")
         }
         return defaultValue
     }

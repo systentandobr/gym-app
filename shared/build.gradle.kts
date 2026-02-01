@@ -74,13 +74,13 @@ android {
     // Ler local.properties - método alternativo robusto
     val sysSegurancaApiKey = run {
         val localPropertiesFile = rootProject.file("local.properties")
-        if (localPropertiesFile.exists()) {
+        val keyFromProperties = if (localPropertiesFile.exists()) {
             val properties = Properties()
             FileInputStream(localPropertiesFile).use { properties.load(it) }
-            properties.getProperty("SYS_SEGURANCA_API_KEY", "")
-        } else {
-            ""
-        }
+            properties.getProperty("SYS_SEGURANCA_API_KEY")
+        } else null
+        
+        keyFromProperties ?: System.getenv("SYS_SEGURANCA_API_KEY") ?: ""
     }
     
     defaultConfig {
@@ -97,5 +97,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
+    }
+    
+    dependencies {
+        coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     }
 }

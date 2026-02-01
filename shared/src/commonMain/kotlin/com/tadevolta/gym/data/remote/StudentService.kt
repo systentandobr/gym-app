@@ -46,6 +46,8 @@ class StudentServiceImpl(
             val jsonBody = buildJsonObject {
                 put("name", studentData.name)
                 put("email", studentData.email)
+                put("unitId", unitId)
+                put("userId", userId)
                 studentData.phone?.let { put("phone", it) }
                 studentData.cpf?.let { put("cpf", it) }
                 studentData.birthDate?.let { put("birthDate", it) }

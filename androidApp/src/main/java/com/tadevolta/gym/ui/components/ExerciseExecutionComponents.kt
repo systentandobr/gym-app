@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import coil.compose.AsyncImage
 import com.tadevolta.gym.ui.theme.*
 
 @Composable
@@ -127,8 +128,13 @@ fun ExerciseExecutionHeader(
 @Composable
 fun ExerciseMediaCard(
     imageUrl: String?,
+    images: List<String>? = null,
     focusMuscle: String
 ) {
+    // Construir lista de URLs de imagens (priorizar images se disponível)
+    val imageUrls = images?.mapNotNull { com.tadevolta.gym.utils.ImageUrlBuilder.buildImageUrl(it) }
+        ?: listOfNotNull(com.tadevolta.gym.utils.ImageUrlBuilder.buildImageUrl(imageUrl))
+    
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -137,17 +143,27 @@ fun ExerciseMediaCard(
             .clip(RoundedCornerShape(16.dp))
             .background(CardDark)
     ) {
-        // Aqui seria a imagem/vídeo do exercício
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Default.FitnessCenter,
+        // Mostrar imagem do exercício se disponível
+        if (imageUrls.isNotEmpty()) {
+            AsyncImage(
+                model = imageUrls.first(),
                 contentDescription = "Exercício",
-                tint = MutedForegroundDark,
-                modifier = Modifier.size(64.dp)
+                modifier = Modifier.fillMaxSize(),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop
             )
+        } else {
+            // Fallback: ícone quando não há imagem
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.FitnessCenter,
+                    contentDescription = "Exercício",
+                    tint = MutedForegroundDark,
+                    modifier = Modifier.size(64.dp)
+                )
+            }
         }
         
         // Tag de foco

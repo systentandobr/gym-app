@@ -7,14 +7,17 @@ import com.tadevolta.gym.data.models.ExecutedSet
 import com.tadevolta.gym.data.models.Exercise
 import com.tadevolta.gym.data.models.Result
 import com.tadevolta.gym.data.models.TrainingPlan
+import com.tadevolta.gym.data.remote.ExerciseService
 import com.tadevolta.gym.data.repositories.TrainingPlanRepository
 import com.tadevolta.gym.domain.usecases.ExecuteExerciseUseCase
+import com.tadevolta.gym.utils.ImageUrlBuilder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -38,6 +41,8 @@ data class ExerciseExecutionUiState(
 class ExerciseExecutionViewModel @Inject constructor(
     private val executeExerciseUseCase: ExecuteExerciseUseCase,
     private val trainingPlanRepository: TrainingPlanRepository,
+    private val exerciseService: ExerciseService,
+    private val appStateManager: AppStateManager,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     
@@ -48,6 +53,12 @@ class ExerciseExecutionViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ExerciseExecutionUiState())
     val uiState: StateFlow<ExerciseExecutionUiState> = _uiState.asStateFlow()
     
+    private val _exerciseDetails = MutableStateFlow<Exercise?>(null)
+    val exerciseDetails: StateFlow<Exercise?> = _exerciseDetails.asStateFlow()
+    
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+    
     private val _isFinishing = MutableStateFlow(false)
     val isFinishing: StateFlow<Boolean> = _isFinishing.asStateFlow()
     
@@ -56,6 +67,16 @@ class ExerciseExecutionViewModel @Inject constructor(
     
     init {
         loadExerciseData()
+        
+        // Observar flag global de refresh
+        viewModelScope.launch {
+            appStateManager.needsDataRefresh.collect { needsRefresh ->
+                if (needsRefresh) {
+                    loadExerciseData(forceRefresh = true)
+                    appStateManager.clearRefreshFlag()
+                }
+            }
+        }
     }
     
     override fun onCleared() {
@@ -64,12 +85,19 @@ class ExerciseExecutionViewModel @Inject constructor(
         restTimerJob?.cancel()
     }
     
-    private fun loadExerciseData() {
+    private fun loadExerciseData(forceRefresh: Boolean = false) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
+            // Verificar se precisa atualizar baseado em estado global
+            val needsRefresh = appStateManager.needsDataRefresh.value || forceRefresh
+            
             // Carregar plano de treino
-            when (val result = trainingPlanRepository.getTrainingPlanById(planId)) {
+            when (val result = trainingPlanRepository.getTrainingPlanById(
+                planId,
+                forceRefresh = forceRefresh,
+                needsRefresh = needsRefresh
+            )) {
                 is Result.Success -> {
                     val plan = result.data
                     
@@ -89,6 +117,12 @@ class ExerciseExecutionViewModel @Inject constructor(
                     }
                     val currentIndex = exercises.indexOfFirst { 
                         it.exerciseId == exerciseId || it.name == exerciseId 
+                    }
+                    
+                    // Carregar detalhes do exercício do catálogo se tiver exerciseId
+                    // Isso garante que as imagens sejam sempre buscadas do catálogo atualizado
+                    exercise?.exerciseId?.let { exId ->
+                        loadExerciseDetails(exId)
                     }
                     
                     // Inicializar sets executados
@@ -150,6 +184,18 @@ class ExerciseExecutionViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(isLoading = true)
                 }
             }
+        }
+    }
+    
+    /**
+     * Força refresh dos dados do exercício.
+     * Chamado quando usuário faz pull-to-refresh.
+     */
+    fun refreshExerciseData() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            loadExerciseData(forceRefresh = true)
+            _isRefreshing.value = false
         }
     }
     
@@ -307,5 +353,51 @@ class ExerciseExecutionViewModel @Inject constructor(
         val minutes = seconds / 60
         val secs = seconds % 60
         return String.format("%02d:%02d", minutes, secs)
+    }
+    
+    /**
+     * Carrega detalhes completos do exercício do catálogo de forma lazy.
+     * Busca o exercício via ExerciseService e constrói URLs completas das imagens.
+     * 
+     * @param exerciseId ID do exercício a ser buscado
+     */
+    fun loadExerciseDetails(exerciseId: String?) {
+        if (exerciseId == null || exerciseId.isBlank()) {
+            android.util.Log.w("ExerciseExecutionViewModel", "exerciseId é null ou vazio")
+            return
+        }
+        
+        android.util.Log.d("ExerciseExecutionViewModel", "Carregando detalhes do exercício: $exerciseId")
+        
+        viewModelScope.launch {
+            when (val result = exerciseService.getExercise(exerciseId)) {
+                is Result.Success -> {
+                    val exercise = result.data
+                    
+                    // Construir URLs completas das imagens
+                    val exerciseWithFullUrls = exercise.copy(
+                        images = exercise.images?.let { ImageUrlBuilder.buildImageUrls(it) },
+                        imageUrl = ImageUrlBuilder.buildImageUrl(exercise.imageUrl)
+                    )
+                    
+                    _exerciseDetails.value = exerciseWithFullUrls
+                    
+                    // Atualizar também o exercício no UI state se for o mesmo
+                    val currentExercise = _uiState.value.exercise
+                    if (currentExercise?.exerciseId == exerciseId || currentExercise?.name == exerciseId) {
+                        _uiState.value = _uiState.value.copy(exercise = exerciseWithFullUrls)
+                    }
+                }
+                is Result.Error -> {
+                    // Em caso de erro, manter exercício inicial (fallback)
+                    // Não atualizar _exerciseDetails para manter null e usar fallback
+                    android.util.Log.w("ExerciseExecutionViewModel", 
+                        "Erro ao carregar detalhes do exercício $exerciseId: ${result.exception.message}")
+                }
+                is Result.Loading -> {
+                    // Estado de carregamento - não fazer nada, manter exercício inicial
+                }
+            }
+        }
     }
 }

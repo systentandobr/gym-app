@@ -171,8 +171,13 @@ fun ExerciseCard(
 @Composable
 fun ExerciseMedia(
     imageUrl: String?,
+    images: List<String>? = null,
     videoUrl: String?
 ) {
+    // Construir lista de URLs de imagens (priorizar images se disponível)
+    val imageUrls = images?.mapNotNull { com.tadevolta.gym.utils.ImageUrlBuilder.buildImageUrl(it) }
+        ?: listOfNotNull(com.tadevolta.gym.utils.ImageUrlBuilder.buildImageUrl(imageUrl))
+    
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -180,11 +185,13 @@ fun ExerciseMedia(
         contentAlignment = Alignment.Center
     ) {
         when {
-            imageUrl != null -> {
+            imageUrls.isNotEmpty() -> {
+                // Mostrar primeira imagem (futuramente pode adicionar carrossel para múltiplas imagens)
                 AsyncImage(
-                    model = imageUrl,
+                    model = imageUrls.first(),
                     contentDescription = "Exercício",
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
             }
             videoUrl != null -> {

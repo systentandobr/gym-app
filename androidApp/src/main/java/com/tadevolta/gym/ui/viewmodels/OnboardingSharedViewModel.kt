@@ -1018,15 +1018,10 @@ class OnboardingSharedViewModel @Inject constructor(
                     applicationScope.launch {
                         createStudentAfterSignUp(userId, finalUnitId)
                         
-                        // Se veio sem unidade, enviar lead também
-                        // Se for aluno, enviar lead (agora sempre enviado após cadastro)
-                        // A função submitLead já lida com os metadados corretos (unidade selecionada ou dados manuais)
+                        // Se for aluno, enviar lead com dados do aluno após cadastro
                         if (_uiState.value.leadType == LeadType.STUDENT) {
                             _uiState.value = _uiState.value.copy(signUpStep = SignUpStep.SENDING_LEAD)
-                            val leadResult = submitLead()
-                            if (leadResult is com.tadevolta.gym.data.models.Result.Error) {
-                                android.util.Log.e("OnboardingSharedViewModel", "Erro ao enviar lead após cadastro: ${leadResult.exception.message}")
-                            }
+                            sendLeadAfterSignUp(name, email)  // Usar dados do aluno do SignUpStep
                         } else if (_uiState.value.cameFromWithoutUnit) {
                             // Fallback caso não tenha leadType definido mas veio sem unidade (legado)
                             _uiState.value = _uiState.value.copy(signUpStep = SignUpStep.SENDING_LEAD)
@@ -1148,7 +1143,9 @@ class OnboardingSharedViewModel @Inject constructor(
                 gender = state.gender,  // Pode ser null, não será incluído no JSON
                 address = address,
                 emergencyContact = emergencyContact,
-                healthInfo = healthInfo
+                healthInfo = healthInfo,
+                userId = userId,
+                unitId = unitId
             )
             
             // Logar informação se usar DEFAULT_UNIT_ID
@@ -1208,31 +1205,62 @@ class OnboardingSharedViewModel @Inject constructor(
     private suspend fun sendLeadAfterSignUp(studentName: String, studentEmail: String) {
         val state = _uiState.value
         
-        if (state.gymName.isBlank() || state.leadPhone.isBlank()) {
+        // Validar se há dados mínimos para enviar lead (unidade selecionada ou dados da academia)
+        val hasUnit = state.selectedUnitId != null || state.selectedUnit != null
+        val hasGymData = state.gymName.isNotBlank() || state.selectedUnit != null
+        
+        if (!hasUnit && !hasGymData) {
+            android.util.Log.w("OnboardingSharedViewModel", "Não há dados suficientes para enviar lead de aluno")
             return
         }
         
         try {
+            // Preparar dados da academia para metadata
+            val finalGymName = state.selectedUnit?.name ?: state.gymName
+            val finalGymEmail = state.selectedUnit?.owner?.email ?: state.leadEmail
+            val finalGymPhone = state.selectedUnit?.owner?.phone ?: state.leadPhone
+            val finalGymAddress = state.selectedUnit?.address ?: state.leadAddress
+            val finalGymCity = state.selectedUnit?.city ?: state.leadCity
+            val finalGymState = state.selectedUnit?.state ?: state.leadState
+            
             val metadata = buildMap<String, String> {
-                state.leadAddress.takeIf { it.isNotBlank() }?.let { put("address", it) }
-                state.leadManualAddress.takeIf { it.isNotBlank() }?.let { put("manualAddress", it) }
-                state.leadManualCoordinates?.let { (lat, lng) -> put("manualCoordinates", "$lat,$lng") }
-                state.responsibleName.takeIf { it.isNotBlank() }?.let { put("responsibleName", it) }
-                state.responsiblePhone.takeIf { it.isNotBlank() }?.let { put("responsiblePhone", it) }
-                state.responsibleEmail.takeIf { it.isNotBlank() }?.let { put("responsibleEmail", it) }
+                state.selectedUnitName?.let { put("selectedUnitName", it) }
                 state.selectedGoal?.let { put("goal", it) }
                 put("source", "app-signup")
                 put("studentName", studentName)
                 put("studentEmail", studentEmail)
+                
+                // Adicionar dados da academia ao metadata
+                if (finalGymName.isNotBlank()) put("gymName", finalGymName)
+                if (finalGymEmail.isNotBlank()) put("gymEmail", finalGymEmail)
+                if (finalGymPhone.isNotBlank()) put("gymPhone", finalGymPhone)
+                if (finalGymAddress.isNotBlank()) put("gymAddress", finalGymAddress)
+                if (finalGymCity.isNotBlank()) put("gymCity", finalGymCity)
+                if (finalGymState.isNotBlank()) put("gymState", finalGymState)
+                
+                // Campos adicionais quando veio sem unidade
+                if (state.cameFromWithoutUnit) {
+                    state.leadManualAddress.takeIf { it.isNotBlank() }?.let { put("manualAddress", it) }
+                    state.leadManualCoordinates?.let { (lat, lng) -> put("manualCoordinates", "$lat,$lng") }
+                    state.responsibleName.takeIf { it.isNotBlank() }?.let { put("responsibleName", it) }
+                    state.responsiblePhone.takeIf { it.isNotBlank() }?.let { put("responsiblePhone", it) }
+                    state.responsibleEmail.takeIf { it.isNotBlank() }?.let { put("responsibleEmail", it) }
+                }
             }
             
+            // Para leads de aluno, SEMPRE usar dados do aluno nos campos principais
+            val finalPhone = state.leadPhone.takeIf { it.isNotBlank() } ?: ""  // Telefone do aluno (quando veio sem unidade)
+            val finalCity = state.city.takeIf { it.isNotBlank() } ?: state.leadCity
+            val finalStateValue = state.state.takeIf { it.isNotBlank() } ?: state.leadState
+            val finalUnitId = state.selectedUnit?.unitId ?: state.selectedUnitId
+            
             val leadRequest = LeadRequest(
-                name = state.name,
-                email = state.responsibleEmail.takeIf { it.isNotBlank() } ?: state.leadPhone,
-                phone = state.leadPhone,
-                city = state.leadCity,
-                state = state.leadState,
-                unitId = state.selectedUnitId,
+                name = studentName,  // Nome do aluno (parâmetro da função)
+                email = studentEmail,  // Email do aluno (parâmetro da função)
+                phone = finalPhone,  // Telefone do aluno
+                city = finalCity,
+                state = finalStateValue,
+                unitId = finalUnitId,
                 marketSegment = "gym",
                 userType = "student",
                 objectives = state.selectedGoal?.let {
@@ -1242,7 +1270,7 @@ class OnboardingSharedViewModel @Inject constructor(
                         interestedInFranchise = false
                     )
                 },
-                metadata = metadata
+                metadata = metadata  // Dados da academia vão aqui
             )
             
             leadService.postLead(leadRequest)
@@ -1268,7 +1296,8 @@ class OnboardingSharedViewModel @Inject constructor(
                 val userId = userResult.data.id
                 val state = _uiState.value
                 val finalUnitId = state.selectedUnitId ?: DEFAULT_UNIT_ID
-                
+                android.util.Log.d("OnboardingSharedViewModel", "Tentando criar aluno para usuário: $userId, unidade: $finalUnitId")
+
                 // Tentar criar apenas o aluno (usuário já existe)
                 createStudentAfterSignUp(userId, finalUnitId)
                 

@@ -16,8 +16,8 @@ android {
         applicationId = "com.tadevolta.gym"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.0.0.1"
+        versionCode = 6
+        versionName = "0.0.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -28,13 +28,13 @@ android {
     // Ler local.properties - método alternativo robusto
     val sysSegurancaApiKey = run {
         val localPropertiesFile = rootProject.file("local.properties")
-        if (localPropertiesFile.exists()) {
+        val keyFromProperties = if (localPropertiesFile.exists()) {
             val properties = Properties()
             FileInputStream(localPropertiesFile).use { properties.load(it) }
-            properties.getProperty("SYS_SEGURANCA_API_KEY", "")
-        } else {
-            ""
-        }
+            properties.getProperty("SYS_SEGURANCA_API_KEY")
+        } else null
+        
+        keyFromProperties ?: System.getenv("SYS_SEGURANCA_API_KEY") ?: ""
     }
     
     buildTypes {
@@ -59,6 +59,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
     
     kotlinOptions {
@@ -115,6 +116,12 @@ dependencies {
     // Coil (imagens)
     implementation("io.coil-kt:coil-compose:2.5.0")
     implementation("io.coil-kt:coil-gif:2.5.0")
+    
+    // SwipeRefresh
+    implementation("com.google.accompanist:accompanist-swiperefresh:0.32.0")
+    
+    // Core library desugaring (para java.time em API < 26)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     
     // ExoPlayer (vídeos)
     implementation("androidx.media3:media3-exoplayer:1.2.0")

@@ -11,6 +11,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.google.accompanist.swiperefresh.SwipeRefresh
+import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -38,8 +40,10 @@ fun ExerciseExecutionScreen(
     onClose: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val exerciseDetails by viewModel.exerciseDetails.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     val executedSets = uiState.executedSets
-    val exercise = uiState.exercise
+    val exercise = exerciseDetails ?: uiState.exercise // Usar detalhes completos se disponível, senão usar exercício inicial
     val workoutTitle = uiState.workoutTitle
     val workoutSubtitle = uiState.workoutSubtitle
     val currentExerciseIndex = uiState.currentExerciseIndex
@@ -54,6 +58,13 @@ fun ExerciseExecutionScreen(
     val listState = rememberLazyListState()
     var shouldScroll by remember { mutableStateOf(false) }
     var shouldScrollToTop by remember { mutableStateOf(false) }
+    
+    // Carregar detalhes do exercício de forma lazy quando a tela abrir
+    LaunchedEffect(exercise?.exerciseId) {
+        exercise?.exerciseId?.let { exerciseId ->
+            viewModel.loadExerciseDetails(exerciseId)
+        }
+    }
     
     // Formatar tempo total
     val totalTime = viewModel.formatTime(totalExecutionTimeSeconds)
@@ -159,262 +170,269 @@ fun ExerciseExecutionScreen(
     }
     
     Scaffold() { paddingValues ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        SwipeRefresh(
+            state = rememberSwipeRefreshState(isRefreshing),
+            onRefresh = { viewModel.refreshExerciseData() },
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Header
-            item {
-                ExerciseExecutionHeader(
-                    workoutTitle = workoutTitle,
-                    workoutSubtitle = workoutSubtitle,
-                    recordText = if (totalExercises > 0 && currentExerciseIndex >= 0) {
-                        "${currentExerciseIndex + 1} DE $totalExercises EXERCÍCIOS"
-                    } else {
-                        "RECORDE: 12 DIAS"
-                    },
-                    progressPercentage = workoutProgress,
-                    onClose = onClose
-                )
-            }
-            
-            // Mídia do exercício
-            item {
-                ExerciseMediaCard(
-                    imageUrl = exercise.imageUrl,
-                    focusMuscle = exercise.name
-                )
-            }
-            
-            // Card do exercício atual com botões de série
-            item {
-                ExerciseCardWithSets(
-                    exercise = exercise,
-                    executedSets = executedSets,
-                    currentSetIndex = currentSetIndex,
-                    isExecutionRunning = isExecutionRunning,
-                    restTimeRemaining = restTimeRemaining,
-                    onSetClick = { setIndex ->
-                        currentSetIndex = setIndex
-                    },
-                    onRestClick = {
-                        viewModel.startRestTimer()
-                        shouldScroll = true
-                    },
-                    onToggleExecution = { isRunning ->
-                        if (isRunning) {
-                            viewModel.startExecutionTimer()
-                            shouldScroll = true
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Header
+                item {
+                    ExerciseExecutionHeader(
+                        workoutTitle = workoutTitle,
+                        workoutSubtitle = workoutSubtitle,
+                        recordText = if (totalExercises > 0 && currentExerciseIndex >= 0) {
+                            "${currentExerciseIndex + 1} DE $totalExercises EXERCÍCIOS"
                         } else {
-                            viewModel.pauseExecutionTimer()
-                        }
-                    }
-                )
-            }
-            
-            // Descrição do exercício (se disponível)
-            if (exercise.notes != null) {
+                            "RECORDE: 12 DIAS"
+                        },
+                        progressPercentage = workoutProgress,
+                        onClose = onClose
+                    )
+                }
+                
+                // Mídia do exercício
                 item {
-                    Text(
-                        text = exercise.notes ?: "",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            color = MutedForegroundDark
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp)
+                    ExerciseMediaCard(
+                        imageUrl = exercise.imageUrl,
+                        images = exercise.images,
+                        focusMuscle = exercise.name
                     )
                 }
-            }
-            
-            // Cards de tempo
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TimeCard(
-                        label = "PRÓXIMO DESCANSO",
-                        time = restTimeText,
-                        icon = {
-                            Icon(
-                                Icons.Default.Timer,
-                                contentDescription = null,
-                                tint = PurplePrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
+                
+                // Card do exercício atual com botões de série
+                item {
+                    ExerciseCardWithSets(
+                        exercise = exercise,
+                        executedSets = executedSets,
+                        currentSetIndex = currentSetIndex,
+                        isExecutionRunning = isExecutionRunning,
+                        restTimeRemaining = restTimeRemaining,
+                        onSetClick = { setIndex ->
+                            currentSetIndex = setIndex
                         },
-                        iconColor = PurplePrimary,
-                        modifier = Modifier.weight(1f),
-                        onAddTime = {
-                            // TODO: Adicionar +30s ao descanso
+                        onRestClick = {
+                            viewModel.startRestTimer()
+                            shouldScroll = true
+                        },
+                        onToggleExecution = { isRunning ->
+                            if (isRunning) {
+                                viewModel.startExecutionTimer()
+                                shouldScroll = true
+                            } else {
+                                viewModel.pauseExecutionTimer()
+                            }
                         }
                     )
-                    TimeCard(
-                        label = "TEMPO TOTAL",
-                        time = totalTime,
-                        icon = {
-                            Icon(
-                                Icons.Default.Schedule,
-                                contentDescription = null,
-                                tint = PinkAccent,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        iconColor = PinkAccent,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-            
-            // Cabeçalho da tabela
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "SÉRIE",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = MutedForegroundDark,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        modifier = Modifier.width(40.dp)
-                    )
-                    Text(
-                        text = "ANTERIOR",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = MutedForegroundDark,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        modifier = Modifier.width(100.dp)
-                    )
-                    Text(
-                        text = "PESO / REPS",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = MutedForegroundDark,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = "OK",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = MutedForegroundDark,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        modifier = Modifier.width(40.dp)
-                    )
-                }
-            }
-            
-            // Séries (planejadas + extras)
-            items(executedSets.size) { index ->
-                val set = executedSets.getOrNull(index)
-                var weight by remember { mutableStateOf(set?.executedWeight?.toString() ?: "") }
-                var reps by remember { mutableStateOf(set?.executedReps?.toString() ?: "") }
-                
-                val isExtraSet = index >= (exercise?.sets ?: 0)
-                val setNumberDisplay = if (isExtraSet) {
-                    "S${index + 1}+"
-                } else {
-                    "${index + 1}"
                 }
                 
-                SetRow(
-                    setNumber = index + 1,
-                    previousWeight = "80kg",
-                    previousReps = if (index == 0) "12" else "10",
-                    currentWeight = weight,
-                    currentReps = reps,
-                    isCompleted = set?.completed == true,
-                    isCurrent = index == currentSetIndex && set?.completed != true,
-                    restTimeRemaining = restTimeRemaining,
-                    onWeightChange = { weight = it },
-                    onRepsChange = { reps = it },
-                    onComplete = {
-                        viewModel.completeSet(
-                            com.tadevolta.gym.data.models.ExecutedSet(
-                                setNumber = index + 1,
-                                plannedReps = exercise?.reps ?: "",
-                                executedReps = reps.toIntOrNull(),
-                                plannedWeight = exercise?.weight,
-                                executedWeight = weight.toDoubleOrNull(),
-                                completed = true
-                            )
+                // Descrição do exercício (se disponível)
+                if (exercise.notes != null) {
+                    item {
+                        Text(
+                            text = exercise.notes ?: "",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = MutedForegroundDark
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp)
                         )
-                        
-                        if (index < executedSets.size - 1) {
-                            currentSetIndex = index + 1
-                        }
-                    },
-                    onLongPress = {
-                        if (set?.completed != true) {
-                            showEditDialog = index
-                        }
-                    },
-                    onScrollRequest = scrollToTop
-                )
-            }
-            
-            // Botão adicionar série
-            item {
-                OutlinedButton(
-                    onClick = { viewModel.addExtraSet() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        width = 1.dp
-                    ),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.Transparent,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Adicionar Série",
-                        style = MaterialTheme.typography.titleSmall
-                    )
+                    }
                 }
-            }
-            
-            // Seção de próximos exercícios
-            if (nextExercises.isNotEmpty()) {
+                
+                // Cards de tempo
                 item {
-                    Column(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TimeCard(
+                            label = "PRÓXIMO DESCANSO",
+                            time = restTimeText,
+                            icon = {
+                                Icon(
+                                    Icons.Default.Timer,
+                                    contentDescription = null,
+                                    tint = PurplePrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            iconColor = PurplePrimary,
+                            modifier = Modifier.weight(1f),
+                            onAddTime = {
+                                // TODO: Adicionar +30s ao descanso
+                            }
+                        )
+                        TimeCard(
+                            label = "TEMPO TOTAL",
+                            time = totalTime,
+                            icon = {
+                                Icon(
+                                    Icons.Default.Schedule,
+                                    contentDescription = null,
+                                    tint = PinkAccent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            iconColor = PinkAccent,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                
+                // Cabeçalho da tabela
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "PRÓXIMOS NA LISTA",
+                            text = "SÉRIE",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = MutedForegroundDark,
                                 fontWeight = FontWeight.Bold
-                            )
+                            ),
+                            modifier = Modifier.width(40.dp)
                         )
-                        nextExercises.forEach { nextExercise ->
-                            NextExerciseCard(
-                                exercise = nextExercise,
-                                isLocked = true
+                        Text(
+                            text = "ANTERIOR",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = MutedForegroundDark,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier.width(100.dp)
+                        )
+                        Text(
+                            text = "PESO / REPS",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = MutedForegroundDark,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "OK",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = MutedForegroundDark,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier.width(40.dp)
+                        )
+                    }
+                }
+                
+                // Séries (planejadas + extras)
+                items(executedSets.size) { index ->
+                    val set = executedSets.getOrNull(index)
+                    var weight by remember { mutableStateOf(set?.executedWeight?.toString() ?: "") }
+                    var reps by remember { mutableStateOf(set?.executedReps?.toString() ?: "") }
+                    
+                    val isExtraSet = index >= (exercise?.sets ?: 0)
+                    val setNumberDisplay = if (isExtraSet) {
+                        "S${index + 1}+"
+                    } else {
+                        "${index + 1}"
+                    }
+                    
+                    SetRow(
+                        setNumber = index + 1,
+                        previousWeight = "80kg",
+                        previousReps = if (index == 0) "12" else "10",
+                        currentWeight = weight,
+                        currentReps = reps,
+                        isCompleted = set?.completed == true,
+                        isCurrent = index == currentSetIndex && set?.completed != true,
+                        restTimeRemaining = restTimeRemaining,
+                        onWeightChange = { weight = it },
+                        onRepsChange = { reps = it },
+                        onComplete = {
+                            viewModel.completeSet(
+                                com.tadevolta.gym.data.models.ExecutedSet(
+                                    setNumber = index + 1,
+                                    plannedReps = exercise?.reps ?: "",
+                                    executedReps = reps.toIntOrNull(),
+                                    plannedWeight = exercise?.weight,
+                                    executedWeight = weight.toDoubleOrNull(),
+                                    completed = true
+                                )
                             )
+                            
+                            if (index < executedSets.size - 1) {
+                                currentSetIndex = index + 1
+                            }
+                        },
+                        onLongPress = {
+                            if (set?.completed != true) {
+                                showEditDialog = index
+                            }
+                        },
+                        onScrollRequest = scrollToTop
+                    )
+                }
+                
+                // Botão adicionar série
+                item {
+                    OutlinedButton(
+                        onClick = { viewModel.addExtraSet() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = ButtonDefaults.outlinedButtonBorder.copy(
+                            width = 1.dp
+                        ),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Adicionar Série",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                    }
+                }
+                
+                // Seção de próximos exercícios
+                if (nextExercises.isNotEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp, vertical = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "PRÓXIMOS NA LISTA",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = MutedForegroundDark,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                            nextExercises.forEach { nextExercise ->
+                                NextExerciseCard(
+                                    exercise = nextExercise,
+                                    isLocked = true
+                                )
+                            }
                         }
                     }
                 }

@@ -157,7 +157,7 @@ class AuthServiceImpl(
             // Validar API KEY antes de enviar
             val apiKey = EnvironmentConfig.SYS_SEGURANCA_API_KEY
             if (apiKey.isBlank()) {
-                return Result.Error(Exception("API Key não configurada. Configure SYS_SEGURANCA_API_KEY em local.properties"))
+                return Result.Error(Exception("API chave não configurada. Configure API_KEY em arquivo .properties"))
             }
             
             val response = client.post("${EnvironmentConfig.SYS_SEGURANCA_BASE_URL}/api/v1/auth/register") {

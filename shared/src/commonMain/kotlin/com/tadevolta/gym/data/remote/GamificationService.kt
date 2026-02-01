@@ -14,6 +14,8 @@ interface GamificationService {
     suspend fun getRanking(unitId: String, limit: Int = 50): Result<List<RankingPosition>>
     suspend fun getWeeklyActivity(studentId: String): Result<WeeklyActivity>
     suspend fun shareProgress(userId: String): Result<ShareableProgress>
+    suspend fun getTeamMetrics(teamId: String): Result<TeamMetrics>
+    suspend fun getTeamsRanking(unitId: String): Result<List<TeamRankingPosition>>
 }
 
 class GamificationServiceImpl(
@@ -23,7 +25,7 @@ class GamificationServiceImpl(
     
     override suspend fun getGamificationData(userId: String): Result<GamificationData> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/users/$userId") {
+            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$userId") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
@@ -108,19 +110,10 @@ class GamificationServiceImpl(
     
     override suspend fun getWeeklyActivity(studentId: String): Result<WeeklyActivity> {
         return try {
-            // Tentar primeiro com students, depois com users se falhar
-            val response = try {
-                client.get("${EnvironmentConfig.API_BASE_URL}/gamification/users/$studentId/weekly-activity") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
-                }
-            } catch (e: Exception) {
-                // Fallback para students se users falhar
-                client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/weekly-activity") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+            // Usar endpoint correto: /gamification/students/
+            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/weekly-activity") {
+                headers {
+                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
             }
             
@@ -154,7 +147,7 @@ class GamificationServiceImpl(
     
     override suspend fun shareProgress(userId: String): Result<ShareableProgress> {
         return try {
-            val response = client.post("${EnvironmentConfig.API_BASE_URL}/gamification/users/$userId/share") {
+            val response = client.post("${EnvironmentConfig.API_BASE_URL}/gamification/students/$userId/share") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
@@ -180,6 +173,99 @@ class GamificationServiceImpl(
                 Result.Success(apiResponse.data)
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao gerar compartilhamento"))
+            }
+        } catch (e: io.ktor.serialization.JsonConvertException) {
+            Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
+    
+    override suspend fun getTeamMetrics(teamId: String): Result<TeamMetrics> {
+        return try {
+            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/teams/$teamId/metrics") {
+                headers {
+                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                }
+            }
+            
+            // Tratar erro 404
+            if (response.status.value == 404) {
+                try {
+                    val errorResponse: ErrorResponse = response.body()
+                    val errorMessage = errorResponse.formattedMessage 
+                        ?: errorResponse.message 
+                        ?: errorResponse.error 
+                        ?: "Métricas do time não encontradas"
+                    return Result.Error(Exception(errorMessage))
+                } catch (e: Exception) {
+                    return Result.Error(Exception("Métricas do time não encontradas (404)"))
+                }
+            }
+            
+            // Tratar outros erros HTTP
+            if (response.status.value >= 400) {
+                val errorBody = try {
+                    response.body<String>()
+                } catch (e: Exception) {
+                    null
+                }
+                return Result.Error(Exception("Erro ao buscar métricas do time: ${errorBody ?: "Erro do servidor"}"))
+            }
+            
+            val apiResponse: ApiResponse<TeamMetrics> = response.body()
+            
+            if (apiResponse.success && apiResponse.data != null) {
+                Result.Success(apiResponse.data)
+            } else {
+                Result.Error(Exception(apiResponse.error ?: "Erro ao buscar métricas do time"))
+            }
+        } catch (e: io.ktor.serialization.JsonConvertException) {
+            Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
+    
+    override suspend fun getTeamsRanking(unitId: String): Result<List<TeamRankingPosition>> {
+        return try {
+            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/teams/ranking") {
+                headers {
+                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                }
+                parameter("unitId", unitId)
+            }
+            
+            // Tratar erro 404
+            if (response.status.value == 404) {
+                try {
+                    val errorResponse: ErrorResponse = response.body()
+                    val errorMessage = errorResponse.formattedMessage 
+                        ?: errorResponse.message 
+                        ?: errorResponse.error 
+                        ?: "Ranking de times não encontrado"
+                    return Result.Error(Exception(errorMessage))
+                } catch (e: Exception) {
+                    return Result.Error(Exception("Ranking de times não encontrado (404)"))
+                }
+            }
+            
+            // Tratar outros erros HTTP
+            if (response.status.value >= 400) {
+                val errorBody = try {
+                    response.body<String>()
+                } catch (e: Exception) {
+                    null
+                }
+                return Result.Error(Exception("Erro ao buscar ranking de times: ${errorBody ?: "Erro do servidor"}"))
+            }
+            
+            val apiResponse: ApiResponse<List<TeamRankingPosition>> = response.body()
+            
+            if (apiResponse.success && apiResponse.data != null) {
+                Result.Success(apiResponse.data)
+            } else {
+                Result.Error(Exception(apiResponse.error ?: "Erro ao buscar ranking de times"))
             }
         } catch (e: io.ktor.serialization.JsonConvertException) {
             Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))

@@ -135,6 +135,28 @@ object AppModule {
     
     @Provides
     @Singleton
+    fun provideTeamService(
+        client: HttpClient,
+        tokenStorage: SecureTokenStorage
+    ): TeamService {
+        return TeamServiceImpl(client) { 
+            kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+        }
+    }
+    
+    @Provides
+    @Singleton
+    fun provideExerciseService(
+        client: HttpClient,
+        tokenStorage: SecureTokenStorage
+    ): ExerciseService {
+        return ExerciseServiceImpl(client) { 
+            kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+        }
+    }
+    
+    @Provides
+    @Singleton
     fun provideBioimpedanceService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage

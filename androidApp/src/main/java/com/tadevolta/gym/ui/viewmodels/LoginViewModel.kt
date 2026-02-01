@@ -25,7 +25,8 @@ data class LoginUiState(
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val userSessionStorage: UserSessionStorage
+    private val userSessionStorage: UserSessionStorage,
+    private val appStateManager: AppStateManager
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -60,6 +61,10 @@ class LoginViewModel @Inject constructor(
                         email = email,
                         password = password
                     )
+                    
+                    // Sinalizar que precisa atualizar dados após login
+                    appStateManager.markNeedsRefresh()
+                    
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         isLoginSuccessful = true
