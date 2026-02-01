@@ -55,7 +55,7 @@ class TrainingPlanServiceImpl(
     
     override suspend fun getTrainingPlanById(id: String): Result<TrainingPlan> {
         return try {
-            val response = client.get("/training-plans/$id") {
+            val response = client.get("${EnvironmentConfig.API_BASE_URL}/training-plans/$id") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }

@@ -22,7 +22,7 @@ class SubscriptionServiceImpl(
     override suspend fun getSubscription(studentId: String): Result<StudentSubscription> {
         return try {
             // Buscar subscription do student
-            val response = client.get("/students/$studentId") {
+            val response = client.get("${EnvironmentConfig.API_BASE_URL}/students/$studentId") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }

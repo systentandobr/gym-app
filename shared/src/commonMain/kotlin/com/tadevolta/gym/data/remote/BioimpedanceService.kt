@@ -22,7 +22,7 @@ class BioimpedanceServiceImpl(
     
     override suspend fun getHistory(studentId: String): Result<BioimpedanceHistory> {
         return try {
-            val response = client.get("/students/$studentId/bioimpedance/history") {
+            val response = client.get("${EnvironmentConfig.API_BASE_URL}/students/$studentId/bioimpedance/history") {
                 headers {
                     tokenProvider()?.let { append("Authorization", "Bearer $it") }
                 }
