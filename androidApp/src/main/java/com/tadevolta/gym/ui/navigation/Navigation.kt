@@ -186,11 +186,12 @@ fun AppNavigation(
             OnboardingUnitScreen(
                 viewModel = sharedViewModel,
                 onNext = {
-                    navController.navigate(Screen.OnboardingGoal.route)
                     val uiState = sharedViewModel.uiState.value
                     // Verificar se veio de "Indique sua Academia"
                     if (uiState.showContinueWithoutUnit) {
-                        navController.navigate(Screen.OnboardingLeadDetails.route)
+                        navController.navigate(Screen.OnboardingLeadDetails.route)                    
+                    } else {
+                        navController.navigate(Screen.OnboardingGoal.route)
                     } 
                 },
                 onNavigateToSignUp = {
