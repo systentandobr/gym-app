@@ -12,19 +12,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -51,7 +48,7 @@ fun OnboardingLeadDetailsScreen(
         mutableStateOf(false) 
     }
     
-    // Se veio de "Seguir sem Unidade", marcar flag e sincronizar endereço manual
+    // Se veio de "Indique sua Academia", marcar flag e sincronizar endereço manual
     androidx.compose.runtime.LaunchedEffect(Unit) {
         if (uiState.showContinueWithoutUnit && uiState.manualAddress.isNotBlank()) {
             viewModel.setLeadManualAddress(uiState.manualAddress)
@@ -107,7 +104,7 @@ fun OnboardingLeadDetailsScreen(
                     // Card "Sou Aluno"
                     LeadTypeCard(
                         title = "Sou Aluno",
-                        description = "Quero me matricular",
+                        description = "Quero usar o aplicativo",
                         icon = Icons.Default.Person,
                         selected = uiState.leadType == LeadType.STUDENT,
                         onClick = { viewModel.selectLeadType(LeadType.STUDENT) },
@@ -138,8 +135,8 @@ fun OnboardingLeadDetailsScreen(
                 }
             }
 
-            // Campos condicionais para Academia (ou quando veio de "Seguir sem Unidade" e escolheu "Sou Aluno")
-            if (uiState.leadType == LeadType.GYM || uiState.leadType == LeadType.STUDENT && uiState.selectedUnit == null) {
+            // Campos condicionais para Academia (ou quando veio de "Indique sua Academia" e escolheu "Sou Aluno")
+            if (uiState.leadType == LeadType.GYM || (uiState.leadType == LeadType.STUDENT && uiState.selectedUnit == null)) {
                 item {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -200,176 +197,13 @@ fun OnboardingLeadDetailsScreen(
                             singleLine = true
                         )
 
-                        // Email
-                        OutlinedTextField(
-                            value = uiState.leadEmail,
-                            onValueChange = { viewModel.updateLeadEmail(it) },
-                            label = { Text("Email") },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                keyboardType = KeyboardType.Email
-                            ),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = PurplePrimary,
-                                unfocusedBorderColor = MutedForegroundDark,
-                                focusedLabelColor = PurplePrimary,
-                                unfocusedLabelColor = MutedForegroundDark
-                            ),
-                            singleLine = true
-                        )
-
-                        // Telefone
-                        OutlinedTextField(
-                            value = uiState.selectedUnit?.let { it.owner.phone }
-                                ?: uiState.leadPhone,
-                            onValueChange = { viewModel.updateLeadPhone(it) },
-                            label = { Text("Telefone") },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                keyboardType = KeyboardType.Phone
-                            ),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = PurplePrimary,
-                                unfocusedBorderColor = MutedForegroundDark,
-                                focusedLabelColor = PurplePrimary,
-                                unfocusedLabelColor = MutedForegroundDark
-                            ),
-                            singleLine = true
-                        )
-
-                        // Endereço
-                        OutlinedTextField(
-                            value = uiState.selectedUnit?.address ?: uiState.leadAddress,
-                            onValueChange = { viewModel.updateLeadAddress(it) },
-                            label = { Text("Endereço") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = PurplePrimary,
-                                unfocusedBorderColor = MutedForegroundDark,
-                                focusedLabelColor = PurplePrimary,
-                                unfocusedLabelColor = MutedForegroundDark
-                            ),
-                            singleLine = true
-                        )
-
-                        // Cidade e Estado
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = uiState.selectedUnit?.city ?: uiState.leadCity,
-                                onValueChange = { viewModel.updateLeadCity(it) },
-                                label = { Text("Cidade") },
-                                modifier = Modifier.weight(1f),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = PurplePrimary,
-                                    unfocusedBorderColor = MutedForegroundDark,
-                                    focusedLabelColor = PurplePrimary,
-                                    unfocusedLabelColor = MutedForegroundDark
-                                ),
-                                singleLine = true
-                            )
-
-                            OutlinedTextField(
-                                value = uiState.selectedUnit?.state ?: uiState.leadState,
-                                onValueChange = { viewModel.updateLeadState(it) },
-                                label = { Text("Estado (UF)") },
-                                modifier = Modifier.weight(1f),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = PurplePrimary,
-                                    unfocusedBorderColor = MutedForegroundDark,
-                                    focusedLabelColor = PurplePrimary,
-                                    unfocusedLabelColor = MutedForegroundDark
-                                ),
-                                singleLine = true
-                            )
-                        }
-
-                        // Média de Alunos Matriculados (Dropdown)
-                        ExposedDropdownMenuBox(
-                            expanded = showAverageStudentsDropdown,
-                            onExpandedChange = {
-                                showAverageStudentsDropdown = !showAverageStudentsDropdown
-                            }
-                        ) {
-                            OutlinedTextField(
-                                value = uiState.averageStudents ?: "",
-                                onValueChange = { },
-                                label = { Text("Média de Alunos Matriculados") },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor(),
-                                readOnly = true,
-                                trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(
-                                        expanded = showAverageStudentsDropdown
-                                    )
-                                },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = PurplePrimary,
-                                    unfocusedBorderColor = MutedForegroundDark,
-                                    focusedLabelColor = PurplePrimary,
-                                    unfocusedLabelColor = MutedForegroundDark
-                                )
-                            )
-
-                            ExposedDropdownMenu(
-                                expanded = showAverageStudentsDropdown,
-                                onDismissRequest = { showAverageStudentsDropdown = false },
-                                modifier = Modifier.background(CardDark)
-                            ) {
-                                averageStudentsOptions.forEach { option ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = option,
-                                                color = Color.White
-                                            )
-                                        },
-                                        onClick = {
-                                            viewModel.updateAverageStudents(option)
-                                            showAverageStudentsDropdown = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        // Campos adicionais quando veio de "Seguir sem Unidade"
-                        if (uiState.cameFromWithoutUnit) {
-                            // Divisor
-                            Divider(
-                                modifier = Modifier.padding(vertical = 8.dp),
-                                color = MutedForegroundDark.copy(alpha = 0.3f)
-                            )
-
-                            Text(
-                                text = "Informações do Responsável/Personal",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
-                            )
-
-                            // Nome do Responsável
+                        // Se veio de indicação e é aluno, mostrar apenas campos essenciais
+                        if (uiState.leadType == LeadType.STUDENT && uiState.cameFromWithoutUnit) {
+                            // Responsável da Academia
                             OutlinedTextField(
                                 value = uiState.responsibleName,
                                 onValueChange = { viewModel.updateResponsibleName(it) },
-                                label = { Text("Nome do Responsável/Personal") },
+                                label = { Text("Responsável da Academia") },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedTextColor = Color.White,
@@ -382,11 +216,214 @@ fun OnboardingLeadDetailsScreen(
                                 singleLine = true
                             )
 
-                            // Telefone do Responsável
+                            // Endereço
                             OutlinedTextField(
-                                value = uiState.responsiblePhone,
-                                onValueChange = { viewModel.updateResponsiblePhone(it) },
-                                label = { Text("Telefone do Responsável") },
+                                value = uiState.selectedUnit?.address ?: uiState.leadAddress,
+                                onValueChange = { viewModel.updateLeadAddress(it) },
+                                label = { Text("Endereço") },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = PurplePrimary,
+                                    unfocusedBorderColor = MutedForegroundDark,
+                                    focusedLabelColor = PurplePrimary,
+                                    unfocusedLabelColor = MutedForegroundDark
+                                ),
+                                singleLine = true
+                            )
+
+                            // CEP e Bairro
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = uiState.leadZipCode,
+                                    onValueChange = { viewModel.updateLeadZipCode(it) },
+                                    label = { Text("CEP") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                        keyboardType = KeyboardType.Number
+                                    ),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = PurplePrimary,
+                                        unfocusedBorderColor = MutedForegroundDark,
+                                        focusedLabelColor = PurplePrimary,
+                                        unfocusedLabelColor = MutedForegroundDark
+                                    ),
+                                    singleLine = true
+                                )
+
+                                OutlinedTextField(
+                                    value = uiState.leadNeighborhood,
+                                    onValueChange = { viewModel.updateLeadNeighborhood(it) },
+                                    label = { Text("Bairro") },
+                                    modifier = Modifier.weight(1f),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = PurplePrimary,
+                                        unfocusedBorderColor = MutedForegroundDark,
+                                        focusedLabelColor = PurplePrimary,
+                                        unfocusedLabelColor = MutedForegroundDark
+                                    ),
+                                    singleLine = true
+                                )
+                            }
+
+                            // Estado e Cidade (Dropdowns)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                // Estado Dropdown
+                                var showStateDropdown by remember { mutableStateOf(false) }
+                                ExposedDropdownMenuBox(
+                                    expanded = showStateDropdown,
+                                    onExpandedChange = { showStateDropdown = !showStateDropdown },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    OutlinedTextField(
+                                        value = uiState.leadState,
+                                        onValueChange = { },
+                                        label = { Text("Estado") },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .menuAnchor(),
+                                        readOnly = true,
+                                        trailingIcon = {
+                                            ExposedDropdownMenuDefaults.TrailingIcon(
+                                                expanded = showStateDropdown
+                                            )
+                                        },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White,
+                                            focusedBorderColor = PurplePrimary,
+                                            unfocusedBorderColor = MutedForegroundDark,
+                                            focusedLabelColor = PurplePrimary,
+                                            unfocusedLabelColor = MutedForegroundDark
+                                        )
+                                    )
+
+                                    ExposedDropdownMenu(
+                                        expanded = showStateDropdown,
+                                        onDismissRequest = { showStateDropdown = false },
+                                        modifier = Modifier.background(CardDark)
+                                    ) {
+                                        uiState.states.forEach { state ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = "${state.name} (${state.uf})",
+                                                        color = Color.White
+                                                    )
+                                                },
+                                                onClick = {
+                                                    viewModel.updateSelectedState(state.id)
+                                                    showStateDropdown = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Cidade Dropdown
+                                var showCityDropdown by remember { mutableStateOf(false) }
+                                ExposedDropdownMenuBox(
+                                    expanded = showCityDropdown,
+                                    onExpandedChange = { showCityDropdown = !showCityDropdown },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    OutlinedTextField(
+                                        value = uiState.leadCity,
+                                        onValueChange = { },
+                                        label = { Text("Cidade") },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .menuAnchor(),
+                                        readOnly = true,
+                                        enabled = uiState.selectedStateId != null,
+                                        trailingIcon = {
+                                            ExposedDropdownMenuDefaults.TrailingIcon(
+                                                expanded = showCityDropdown
+                                            )
+                                        },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White,
+                                            focusedBorderColor = PurplePrimary,
+                                            unfocusedBorderColor = MutedForegroundDark,
+                                            focusedLabelColor = PurplePrimary,
+                                            unfocusedLabelColor = MutedForegroundDark
+                                        )
+                                    )
+
+                                    ExposedDropdownMenu(
+                                        expanded = showCityDropdown,
+                                        onDismissRequest = { showCityDropdown = false },
+                                        modifier = Modifier.background(CardDark)
+                                    ) {
+                                        if (uiState.cities.isEmpty()) {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = "Selecione um estado primeiro",
+                                                        color = MutedForegroundDark
+                                                    )
+                                                },
+                                                onClick = { showCityDropdown = false }
+                                            )
+                                        } else {
+                                            uiState.cities.forEach { city ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = city.name,
+                                                            color = Color.White
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        viewModel.updateSelectedCity(city.id)
+                                                        showCityDropdown = false
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // Formulário completo para Academia ou quando não veio de indicação
+                            // Email
+                            OutlinedTextField(
+                                value = uiState.leadEmail,
+                                onValueChange = { viewModel.updateLeadEmail(it) },
+                                label = { Text("Email") },
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    keyboardType = KeyboardType.Email
+                                ),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = PurplePrimary,
+                                    unfocusedBorderColor = MutedForegroundDark,
+                                    focusedLabelColor = PurplePrimary,
+                                    unfocusedLabelColor = MutedForegroundDark
+                                ),
+                                singleLine = true
+                            )
+
+                            // Telefone
+                            OutlinedTextField(
+                                value = uiState.selectedUnit?.let { it.owner.phone }
+                                    ?: uiState.leadPhone,
+                                onValueChange = { viewModel.updateLeadPhone(it) },
+                                label = { Text("Telefone") },
                                 modifier = Modifier.fillMaxWidth(),
                                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                                     keyboardType = KeyboardType.Phone
@@ -402,16 +439,12 @@ fun OnboardingLeadDetailsScreen(
                                 singleLine = true
                             )
 
-                            // Email do Responsável
+                            // Endereço
                             OutlinedTextField(
-                                value = uiState.selectedUnit?.let { it.owner.email }
-                                    ?: uiState.responsibleEmail,
-                                onValueChange = { viewModel.updateResponsibleEmail(it) },
-                                label = { Text("Email do Responsável") },
+                                value = uiState.selectedUnit?.address ?: uiState.leadAddress,
+                                onValueChange = { viewModel.updateLeadAddress(it) },
+                                label = { Text("Endereço") },
                                 modifier = Modifier.fillMaxWidth(),
-                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                    keyboardType = KeyboardType.Email
-                                ),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White,
@@ -422,15 +455,105 @@ fun OnboardingLeadDetailsScreen(
                                 ),
                                 singleLine = true
                             )
+
+                            // Cidade e Estado
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = uiState.selectedUnit?.city ?: uiState.leadCity,
+                                    onValueChange = { viewModel.updateLeadCity(it) },
+                                    label = { Text("Cidade") },
+                                    modifier = Modifier.weight(1f),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = PurplePrimary,
+                                        unfocusedBorderColor = MutedForegroundDark,
+                                        focusedLabelColor = PurplePrimary,
+                                        unfocusedLabelColor = MutedForegroundDark
+                                    ),
+                                    singleLine = true
+                                )
+
+                                OutlinedTextField(
+                                    value = uiState.selectedUnit?.state ?: uiState.leadState,
+                                    onValueChange = { viewModel.updateLeadState(it) },
+                                    label = { Text("Estado (UF)") },
+                                    modifier = Modifier.weight(1f),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = PurplePrimary,
+                                        unfocusedBorderColor = MutedForegroundDark,
+                                        focusedLabelColor = PurplePrimary,
+                                        unfocusedLabelColor = MutedForegroundDark
+                                    ),
+                                    singleLine = true
+                                )
+                            }
+
+                            // Média de Alunos Matriculados (Dropdown) - apenas para Academia
+                            if (uiState.leadType == LeadType.GYM) {
+                                ExposedDropdownMenuBox(
+                                    expanded = showAverageStudentsDropdown,
+                                    onExpandedChange = {
+                                        showAverageStudentsDropdown = !showAverageStudentsDropdown
+                                    }
+                                ) {
+                                    OutlinedTextField(
+                                        value = uiState.averageStudents ?: "",
+                                        onValueChange = { },
+                                        label = { Text("Média de Alunos Matriculados") },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .menuAnchor(),
+                                        readOnly = true,
+                                        trailingIcon = {
+                                            ExposedDropdownMenuDefaults.TrailingIcon(
+                                                expanded = showAverageStudentsDropdown
+                                            )
+                                        },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White,
+                                            focusedBorderColor = PurplePrimary,
+                                            unfocusedBorderColor = MutedForegroundDark,
+                                            focusedLabelColor = PurplePrimary,
+                                            unfocusedLabelColor = MutedForegroundDark
+                                        )
+                                    )
+
+                                    ExposedDropdownMenu(
+                                        expanded = showAverageStudentsDropdown,
+                                        onDismissRequest = { showAverageStudentsDropdown = false },
+                                        modifier = Modifier.background(CardDark)
+                                    ) {
+                                        averageStudentsOptions.forEach { option ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = option,
+                                                        color = Color.White
+                                                    )
+                                                },
+                                                onClick = {
+                                                    viewModel.updateAverageStudents(option)
+                                                    showAverageStudentsDropdown = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
-
-
                     }
                 }
             }
 
-            // Campos adicionais para aluno
-            if (uiState.leadType == LeadType.STUDENT) {
+            // Campos adicionais para aluno (apenas se não veio de indicação)
+            if (uiState.leadType == LeadType.STUDENT && !uiState.cameFromWithoutUnit) {
                 item {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(16.dp)

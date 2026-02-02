@@ -64,8 +64,37 @@ class CheckInServiceImpl(
                 } catch (e: Exception) {
                     null
                 }
-                return Result.Error(Exception(
+                
+                // Tentar deserializar como objeto de erro para identificar tipo
+                val errorType = try {
+                    val errorJson = errorBody?.let { 
+                        kotlinx.serialization.json.Json.parseToJsonElement(it).jsonObject
+                    }
+                    val errorCode = errorJson?.get("error")?.jsonPrimitive?.content
+                    
+                    when (errorCode) {
+                        "LOCATION_OUT_OF_RANGE" -> com.tadevolta.gym.data.models.CheckInErrorType.LOCATION_OUT_OF_RANGE
+                        "TRAINING_IN_PROGRESS" -> com.tadevolta.gym.data.models.CheckInErrorType.TRAINING_IN_PROGRESS
+                        "CHECK_IN_ALREADY_DONE" -> com.tadevolta.gym.data.models.CheckInErrorType.ALREADY_DONE
+                        else -> com.tadevolta.gym.data.models.CheckInErrorType.GENERIC
+                    }
+                } catch (e: Exception) {
+                    com.tadevolta.gym.data.models.CheckInErrorType.GENERIC
+                }
+                
+                val errorMessage = try {
+                    val errorJson = errorBody?.let { 
+                        kotlinx.serialization.json.Json.parseToJsonElement(it).jsonObject
+                    }
+                    errorJson?.get("message")?.jsonPrimitive?.content 
+                        ?: "Erro ao fazer check-in: ${errorBody ?: "Erro do servidor (${response.status.value})"}"
+                } catch (e: Exception) {
                     "Erro ao fazer check-in: ${errorBody ?: "Erro do servidor (${response.status.value})"}"
+                }
+                
+                return Result.Error(com.tadevolta.gym.data.models.CheckInException(
+                    errorMessage,
+                    errorType
                 ))
             }
             

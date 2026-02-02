@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tadevolta.gym.ui.components.*
+import com.tadevolta.gym.ui.components.CheckInModalType
 import com.tadevolta.gym.ui.theme.*
 import com.tadevolta.gym.ui.viewmodels.CheckInViewModel
 import com.tadevolta.gym.utils.LocationHelper
@@ -37,7 +38,8 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CheckInScreen(
-    viewModel: CheckInViewModel = hiltViewModel()
+    viewModel: CheckInViewModel = hiltViewModel(),
+    onNavigateToTrainingPlan: (studentId: String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val stats = uiState.checkInStats
@@ -46,6 +48,9 @@ fun CheckInScreen(
     val isValidatingLocation = uiState.isValidatingLocation
     val isOutOfRange = uiState.isOutOfRange
     val locationError = uiState.locationError
+    val showModal = uiState.showModal
+    val modalType = uiState.modalType
+    val modalMessage = uiState.modalMessage
     
     val context = LocalContext.current
     val locationHelper = remember { LocationHelper(context) }
@@ -171,6 +176,28 @@ fun CheckInScreen(
                 },
                 onDismiss = {
                     showLocationPermissionModal = false
+                }
+            )
+        }
+        
+        // Modal de resultado do check-in
+        if (showModal && modalType != null) {
+            CheckInResultModal(
+                modalType = modalType,
+                message = modalMessage,
+                onConfirm = {
+                    viewModel.dismissModal()
+                    if (modalType == CheckInModalType.SUCCESS) {
+                        // Obter studentId para navegação - usar método do ViewModel
+                        coroutineScope.launch {
+                            viewModel.getStudentIdForNavigation { studentId ->
+                                onNavigateToTrainingPlan(studentId)
+                            }
+                        }
+                    }
+                },
+                onDismiss = {
+                    viewModel.dismissModal()
                 }
             )
         }

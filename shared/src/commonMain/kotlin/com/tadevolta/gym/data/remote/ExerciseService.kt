@@ -56,18 +56,44 @@ class ExerciseServiceImpl(
                 return Result.Error(Exception("Erro ao buscar exercício: ${errorBody ?: "Erro do servidor"}"))
             }
             
-            val json = Json { ignoreUnknownKeys = true }
-            val apiResponse: ApiResponse<Exercise> = json.decodeFromString(response.bodyAsText())
-            
-            if (apiResponse.success && apiResponse.data != null) {
-                Result.Success(apiResponse.data)
-            } else {
-                Result.Error(Exception(apiResponse.error ?: "Erro ao buscar exercício"))
+            // A API retorna CatalogExercise (formato do catálogo) diretamente, não envolto em ApiResponse
+            // Tentar deserializar como CatalogExercise primeiro
+            try {
+                val json = Json { ignoreUnknownKeys = true }
+                val responseText = response.bodyAsText()
+                
+                // Tentar deserializar como CatalogExercise primeiro (formato do catálogo)
+                try {
+                    val catalogExercise: CatalogExercise = json.decodeFromString(CatalogExercise.serializer(), responseText)
+                    // Converter CatalogExercise para Exercise
+                    return Result.Success(catalogExercise.toExercise())
+                } catch (e2: kotlinx.serialization.SerializationException) {
+                    // Se falhar, tentar como Exercise diretamente (formato do plano de treino)
+                    try {
+                        val exercise: Exercise = json.decodeFromString(Exercise.serializer(), responseText)
+                        return Result.Success(exercise)
+                    } catch (e3: kotlinx.serialization.SerializationException) {
+                        // Se falhar, tentar como ApiResponse<Exercise> (fallback)
+                        try {
+                            val apiResponse: ApiResponse<Exercise> = json.decodeFromString(
+                                ApiResponse.serializer(Exercise.serializer()), 
+                                responseText
+                            )
+                            if (apiResponse.success && apiResponse.data != null) {
+                                return Result.Success(apiResponse.data)
+                            } else {
+                                return Result.Error(Exception(apiResponse.error ?: "Erro ao buscar exercício"))
+                            }
+                        } catch (e4: kotlinx.serialization.SerializationException) {
+                            return Result.Error(Exception("Erro ao processar resposta do servidor. Formato não reconhecido: ${e2.message}"))
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                return Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
             }
-        } catch (e: io.ktor.serialization.JsonConvertException) {
-            Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
-            Result.Error(e)
+            return Result.Error(Exception("Erro ao buscar exercício: ${e.message}"))
         }
     }
     

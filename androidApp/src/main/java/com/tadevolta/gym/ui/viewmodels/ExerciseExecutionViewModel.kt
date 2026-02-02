@@ -7,9 +7,10 @@ import com.tadevolta.gym.data.models.ExecutedSet
 import com.tadevolta.gym.data.models.Exercise
 import com.tadevolta.gym.data.models.Result
 import com.tadevolta.gym.data.models.TrainingPlan
+import com.tadevolta.gym.data.models.TrainingExecution
 import com.tadevolta.gym.data.remote.ExerciseService
 import com.tadevolta.gym.data.repositories.TrainingPlanRepository
-import com.tadevolta.gym.domain.usecases.ExecuteExerciseUseCase
+import com.tadevolta.gym.data.repositories.TrainingRepository
 import com.tadevolta.gym.utils.ImageUrlBuilder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -39,8 +40,8 @@ data class ExerciseExecutionUiState(
 
 @HiltViewModel
 class ExerciseExecutionViewModel @Inject constructor(
-    private val executeExerciseUseCase: ExecuteExerciseUseCase,
     private val trainingPlanRepository: TrainingPlanRepository,
+    private val trainingRepository: TrainingRepository,
     private val exerciseService: ExerciseService,
     private val appStateManager: AppStateManager,
     private val savedStateHandle: SavedStateHandle
@@ -49,6 +50,8 @@ class ExerciseExecutionViewModel @Inject constructor(
     private val planId: String = savedStateHandle.get<String>("planId") ?: ""
     private val exerciseId: String = savedStateHandle.get<String>("exerciseId") ?: ""
     private val dayOfWeek: Int? = savedStateHandle.get<Int>("dayOfWeek")
+    
+    private var currentTrainingExecutionId: String? = null
     
     private val _uiState = MutableStateFlow(ExerciseExecutionUiState())
     val uiState: StateFlow<ExerciseExecutionUiState> = _uiState.asStateFlow()
@@ -92,6 +95,36 @@ class ExerciseExecutionViewModel @Inject constructor(
             // Verificar se precisa atualizar baseado em estado global
             val needsRefresh = appStateManager.needsDataRefresh.value || forceRefresh
             
+            // Buscar ou criar TrainingExecution ativa
+            val trainingExecutionResult = trainingRepository.getActiveTrainingExecution()
+            val trainingExecution = when (trainingExecutionResult) {
+                is Result.Success -> trainingExecutionResult.data
+                else -> null
+            }
+            
+            // Se não há TrainingExecution ativa para este plano, criar uma
+            if (trainingExecution == null || trainingExecution.trainingPlanId != planId) {
+                when (val createResult = trainingRepository.createTrainingExecution(planId)) {
+                    is Result.Success -> {
+                        currentTrainingExecutionId = createResult.data.id
+                        // Carregar executedSets da nova TrainingExecution
+                        loadExecutedSetsFromTraining(createResult.data)
+                    }
+                    is Result.Error -> {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            error = "Erro ao iniciar execução de treino: ${createResult.exception.message}"
+                        )
+                        return@launch
+                    }
+                    else -> {}
+                }
+            } else {
+                currentTrainingExecutionId = trainingExecution.id
+                // Carregar executedSets da TrainingExecution existente
+                loadExecutedSetsFromTraining(trainingExecution)
+            }
+            
             // Carregar plano de treino
             when (val result = trainingPlanRepository.getTrainingPlanById(
                 planId,
@@ -132,18 +165,20 @@ class ExerciseExecutionViewModel @Inject constructor(
                         loadExerciseDetailsByName(exerciseName)
                     }
                     
-                    // Inicializar sets executados
-                    val initialSets = exercise?.sets ?: 3
-                    val executedSets = (1..initialSets).map { setNumber ->
-                        ExecutedSet(
-                            setNumber = setNumber,
-                            plannedReps = exercise?.reps ?: "",
-                            executedReps = null,
-                            plannedWeight = exercise?.weight,
-                            executedWeight = null,
-                            completed = false,
-                            timestamp = null
-                        )
+                    // Carregar executedSets da TrainingExecution se existir
+                    val executedSets = if (currentTrainingExecutionId != null) {
+                        val trainingExec = trainingRepository.getTrainingExecutionById(currentTrainingExecutionId!!)
+                        when (trainingExec) {
+                            is Result.Success -> {
+                                val exerciseExec = trainingExec.data.exercises.find { 
+                                    it.exerciseId == exerciseId || it.name == exerciseId 
+                                }
+                                exerciseExec?.executedSets ?: initializeEmptySets(exercise)
+                            }
+                            else -> initializeEmptySets(exercise)
+                        }
+                    } else {
+                        initializeEmptySets(exercise)
                     }
                     
                     // Determinar subtítulo do treino baseado no dayOfWeek
@@ -260,16 +295,79 @@ class ExerciseExecutionViewModel @Inject constructor(
         }
     }
     
+    private fun initializeEmptySets(exercise: Exercise?): List<ExecutedSet> {
+        val initialSets = exercise?.sets ?: 3
+        return (1..initialSets).map { setNumber ->
+            ExecutedSet(
+                setNumber = setNumber,
+                plannedReps = exercise?.reps ?: "",
+                executedReps = null,
+                plannedWeight = exercise?.weight,
+                executedWeight = null,
+                completed = false,
+                timestamp = null
+            )
+        }
+    }
+    
+    private suspend fun loadExecutedSetsFromTraining(trainingExecution: TrainingExecution) {
+        val exerciseExec = trainingExecution.exercises.find { 
+            it.exerciseId == exerciseId || it.name == exerciseId 
+        }
+        if (exerciseExec != null) {
+            _uiState.value = _uiState.value.copy(executedSets = exerciseExec.executedSets)
+        }
+    }
+    
     fun finishExercise() {
         viewModelScope.launch {
             _isFinishing.value = true
-            executeExerciseUseCase(
-                planId = planId,
+            
+            val trainingId = currentTrainingExecutionId
+            if (trainingId == null) {
+                _uiState.value = _uiState.value.copy(error = "Erro: Execução de treino não encontrada")
+                _isFinishing.value = false
+                return@launch
+            }
+            
+            when (val result = trainingRepository.updateExerciseExecution(
+                trainingId = trainingId,
                 exerciseId = exerciseId,
                 executedSets = _uiState.value.executedSets
-            )
+            )) {
+                is Result.Success -> {
+                    // Verificar se todos os exercícios do treino estão completos
+                    val updatedTraining = result.data
+                    val allExercisesCompleted = checkAllExercisesCompleted(updatedTraining)
+                    
+                    if (allExercisesCompleted) {
+                        // Completar TrainingExecution
+                        trainingRepository.completeTrainingExecution(
+                            trainingId = trainingId,
+                            totalDurationSeconds = _uiState.value.totalExecutionTimeSeconds.toInt()
+                        )
+                    }
+                }
+                is Result.Error -> {
+                    _uiState.value = _uiState.value.copy(error = "Erro ao salvar execução: ${result.exception.message}")
+                }
+                else -> {
+                    _uiState.value = _uiState.value.copy(error = "Erro desconhecido ao salvar execução")
+                }
+            }
+            
             _isFinishing.value = false
         }
+    }
+    
+    private fun checkAllExercisesCompleted(trainingExecution: TrainingExecution): Boolean {
+        // Buscar o plano para saber quantos exercícios são esperados
+        // Por enquanto, assumir que se todos os exercícios na TrainingExecution têm executedSets completos, está completo
+        return trainingExecution.exercises.isNotEmpty() &&
+               trainingExecution.exercises.all { exerciseExec ->
+                   exerciseExec.executedSets.isNotEmpty() &&
+                   exerciseExec.executedSets.all { it.completed }
+               }
     }
     
     fun startExecutionTimer() {

@@ -26,13 +26,13 @@ data class OnboardingLeadUiState(
     val averageStudents: String? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
-    // Campos adicionais para "Seguir sem Unidade"
+    // Campos adicionais para "Indique sua Academia"
     val responsibleName: String = "",
     val responsiblePhone: String = "",
     val responsibleEmail: String = "",
     val manualAddress: String = "",
     val manualCoordinates: Pair<Double, Double>? = null,
-    val cameFromWithoutUnit: Boolean = false // Flag para indicar que veio de "Seguir sem Unidade"
+    val cameFromWithoutUnit: Boolean = false // Flag para indicar que veio de "Indique sua Academia"
 )
 
 @HiltViewModel
@@ -167,7 +167,7 @@ class OnboardingLeadViewModel @Inject constructor(
             state.averageStudents?.let { put("averageStudents", it) }
             goal?.let { put("goal", it) }
             
-            // Campos adicionais quando veio de "Seguir sem Unidade"
+            // Campos adicionais quando veio de "Indique sua Academia"
             if (state.cameFromWithoutUnit) {
                 if (state.responsibleName.isNotBlank()) {
                     put("responsibleName", state.responsibleName)

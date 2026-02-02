@@ -1,0 +1,43 @@
+CREATE TABLE training_execution (
+    id TEXT PRIMARY KEY,
+    training_plan_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    unit_id TEXT NOT NULL,
+    started_at INTEGER NOT NULL,
+    completed_at INTEGER,
+    status TEXT NOT NULL,
+    total_duration_seconds INTEGER,
+    data_json TEXT NOT NULL
+);
+
+CREATE INDEX training_execution_user_id ON training_execution(user_id);
+CREATE INDEX training_execution_unit_id ON training_execution(unit_id);
+CREATE INDEX training_execution_status ON training_execution(status);
+CREATE INDEX training_execution_training_plan_id ON training_execution(training_plan_id);
+CREATE INDEX training_execution_user_unit_status ON training_execution(user_id, unit_id, status);
+
+selectAll:
+SELECT * FROM training_execution WHERE user_id = ? ORDER BY started_at DESC;
+
+selectById:
+SELECT * FROM training_execution WHERE id = ?;
+
+selectActive:
+SELECT * FROM training_execution WHERE user_id = ? AND unit_id = ? AND status = 'in_progress' ORDER BY started_at DESC LIMIT 1;
+
+selectByPlan:
+SELECT * FROM training_execution WHERE training_plan_id = ? AND user_id = ? ORDER BY started_at DESC;
+
+insertOrReplace:
+INSERT OR REPLACE INTO training_execution (id, training_plan_id, user_id, unit_id, started_at, completed_at, status, total_duration_seconds, data_json)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteById:
+DELETE FROM training_execution WHERE id = ?;
+
+selectExerciseExecutions:
+SELECT * FROM exercise_execution WHERE training_execution_id = ? AND exercise_id = ? ORDER BY set_number;
+
+insertExerciseExecution:
+INSERT OR REPLACE INTO exercise_execution (id, training_execution_id, exercise_id, set_number, planned_reps, executed_reps, planned_weight, executed_weight, completed, timestamp)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);

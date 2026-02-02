@@ -4,8 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tadevolta.gym.data.models.CheckIn
 import com.tadevolta.gym.data.models.CheckInStats
+import com.tadevolta.gym.data.models.CheckInException
+import com.tadevolta.gym.data.models.CheckInErrorType
 import com.tadevolta.gym.data.models.Location as LocationModel
 import com.tadevolta.gym.data.remote.CheckInService
+import com.tadevolta.gym.ui.components.CheckInModalType
 import com.tadevolta.gym.data.remote.FranchiseService
 import com.tadevolta.gym.data.repositories.AuthRepository
 import com.tadevolta.gym.data.repositories.TrainingPlanRepository
@@ -31,7 +34,10 @@ data class CheckInUiState(
     val locationError: String? = null,
     val isOutOfRange: Boolean = false,
     val selectedUnitName: String? = null,
-    val selectedUnitLocation: LocationModel? = null
+    val selectedUnitLocation: LocationModel? = null,
+    val showModal: Boolean = false,
+    val modalType: CheckInModalType? = null,
+    val modalMessage: String? = null
 )
 
 @HiltViewModel
@@ -210,20 +216,55 @@ class CheckInViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(
                         isCheckingIn = false,
                         isOutOfRange = false,
-                        locationError = null
+                        locationError = null,
+                        showModal = true,
+                        modalType = CheckInModalType.SUCCESS,
+                        modalMessage = null // Usará mensagem padrão do componente
                     )
                     loadCheckInData() // Recarregar dados
                 }
                 is com.tadevolta.gym.data.models.Result.Error -> {
+                    val exception = result.exception
+                    val errorType = when {
+                        exception is CheckInException -> {
+                            when (exception.errorType) {
+                                CheckInErrorType.LOCATION_OUT_OF_RANGE -> CheckInModalType.ERROR_LOCATION
+                                CheckInErrorType.TRAINING_IN_PROGRESS -> CheckInModalType.ERROR_TRAINING_IN_PROGRESS
+                                CheckInErrorType.ALREADY_DONE -> CheckInModalType.ERROR_ALREADY_DONE
+                                CheckInErrorType.GENERIC -> CheckInModalType.ERROR_GENERIC
+                            }
+                        }
+                        else -> {
+                            // Tentar identificar tipo de erro pela mensagem
+                            val message = exception.message ?: ""
+                            when {
+                                message.contains("dentro da academia", ignoreCase = true) ||
+                                message.contains("fora do alcance", ignoreCase = true) ||
+                                message.contains("LOCATION_OUT_OF_RANGE", ignoreCase = true) -> CheckInModalType.ERROR_LOCATION
+                                message.contains("treino", ignoreCase = true) ||
+                                message.contains("TRAINING_IN_PROGRESS", ignoreCase = true) -> CheckInModalType.ERROR_TRAINING_IN_PROGRESS
+                                message.contains("já realizado", ignoreCase = true) ||
+                                message.contains("CHECK_IN_ALREADY_DONE", ignoreCase = true) -> CheckInModalType.ERROR_ALREADY_DONE
+                                else -> CheckInModalType.ERROR_GENERIC
+                            }
+                        }
+                    }
+                    
                     _uiState.value = _uiState.value.copy(
                         isCheckingIn = false,
-                        locationError = result.exception.message ?: "Erro ao fazer check-in"
+                        locationError = exception.message ?: "Erro ao fazer check-in",
+                        showModal = true,
+                        modalType = errorType,
+                        modalMessage = exception.message
                     )
                 }
                 else -> {
                     _uiState.value = _uiState.value.copy(
                         isCheckingIn = false,
-                        locationError = "Erro desconhecido"
+                        locationError = "Erro desconhecido",
+                        showModal = true,
+                        modalType = CheckInModalType.ERROR_GENERIC,
+                        modalMessage = "Erro desconhecido"
                     )
                 }
             }
@@ -239,5 +280,24 @@ class CheckInViewModel @Inject constructor(
     
     fun retryLocationValidation() {
         performCheckIn()
+    }
+    
+    fun dismissModal() {
+        _uiState.value = _uiState.value.copy(
+            showModal = false,
+            modalType = null,
+            modalMessage = null
+        )
+    }
+    
+    suspend fun getStudentIdForNavigation(onResult: (String) -> Unit) {
+        val user = authRepository.getCachedUser() ?: when (val result = authRepository.getCurrentUser()) {
+            is com.tadevolta.gym.data.models.Result.Success -> result.data
+            else -> null
+        }
+        if (user != null) {
+            val studentId = getStudentId(user.id, trainingPlanRepository)
+            onResult(studentId)
+        }
     }
 }

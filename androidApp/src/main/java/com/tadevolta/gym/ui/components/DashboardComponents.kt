@@ -17,6 +17,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.IntOffset
+import com.tadevolta.gym.data.models.UnitOccupancyResponse
+import com.tadevolta.gym.data.models.UnitOccupancyStatus
 import com.tadevolta.gym.ui.theme.*
 
 @Composable
@@ -467,6 +471,225 @@ fun RankingCard(
                     tint = Color(0xFFCD7F32), // Bronze
                     modifier = Modifier.size(24.dp)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun PeakHoursCard(
+    occupancyData: UnitOccupancyResponse?,
+    selectedDayOfWeek: Int?,
+    onDaySelected: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = CardDark),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header com título e ícone de ajuda
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Horários de pico",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = "Informações",
+                        tint = MutedForegroundDark,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+            
+            // Seletor de dias da semana
+            val daysOfWeek = listOf("DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB")
+            val currentDay = selectedDayOfWeek ?: occupancyData?.dayOfWeek ?: 0
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                daysOfWeek.forEachIndexed { index, day ->
+                    TextButton(
+                        onClick = { onDaySelected(index) },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = if (index == currentDay) PurplePrimary else MutedForegroundDark
+                        )
+                    ) {
+                        Text(
+                            text = day,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = if (index == currentDay) FontWeight.Bold else FontWeight.Normal
+                            )
+                        )
+                    }
+                }
+            }
+            
+            // Gráfico de barras
+            occupancyData?.let { data ->
+                val peakHours = data.peakHours.filter { it.hour in listOf(5,7,9,11,13,15,17,19,21) }
+                val maxCheckIns = peakHours.maxOfOrNull { it.checkInCount } ?: 1
+                
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    // Barras do gráfico
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        peakHours.forEach { peakHour ->
+                            val barHeight = if (maxCheckIns > 0) {
+                                (peakHour.checkInCount.toFloat() / maxCheckIns.toFloat() * 100.dp.value).dp.coerceAtLeast(8.dp)
+                            } else {
+                                8.dp
+                            }
+                            
+                            val isCurrentHour = peakHour.hour == data.currentHour
+                            val statusColor = when (data.currentStatus) {
+                                UnitOccupancyStatus.VERY_BUSY -> Color(0xFFFF4444) // Vermelho
+                                UnitOccupancyStatus.BUSY -> Color(0xFFFF8800) // Laranja
+                                UnitOccupancyStatus.MODERATELY_BUSY -> Color(0xFFFFAA00) // Amarelo
+                                UnitOccupancyStatus.NOT_BUSY -> Color(0xFF10B981) // Verde
+                            }
+                            
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Bottom
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(32.dp)
+                                        .height(barHeight)
+                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                        .background(
+                                            if (isCurrentHour) statusColor.copy(alpha = 0.8f)
+                                            else CardDarker
+                                        )
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "${peakHour.hour}h",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = MutedForegroundDark
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Indicador "Ao vivo" se for o horário atual
+                    if (data.currentHour in listOf(5,7,9,11,13,15,17,19,21,23)) {
+                        val currentIndex = peakHours.indexOfFirst { it.hour == data.currentHour }
+                        if (currentIndex >= 0) {
+                            val statusText = when (data.currentStatus) {
+                                UnitOccupancyStatus.VERY_BUSY -> "Muito movimentado"
+                                UnitOccupancyStatus.BUSY -> "Movimentado"
+                                UnitOccupancyStatus.MODERATELY_BUSY -> "Moderadamente movimentado"
+                                UnitOccupancyStatus.NOT_BUSY -> "Não muito movimentado"
+                            }
+                            
+                            val statusColor = when (data.currentStatus) {
+                                UnitOccupancyStatus.VERY_BUSY -> Color(0xFFFF4444)
+                                UnitOccupancyStatus.BUSY -> Color(0xFFFF8800)
+                                UnitOccupancyStatus.MODERATELY_BUSY -> Color(0xFFFFAA00)
+                                UnitOccupancyStatus.NOT_BUSY -> Color(0xFF10B981)
+                            }
+                            
+                            val offsetX = (currentIndex * (100f / peakHours.size.coerceAtLeast(1))).dp.value.toInt()
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .offset { IntOffset(offsetX, 0) }
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(statusColor)
+                                    )
+                                    Text(
+                                        text = "Ao vivo: $statusText",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = statusColor,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    )
+                                }
+                                // Linha pontilhada vertical
+                                Box(
+                                    modifier = Modifier
+                                        .width(1.dp)
+                                        .height(120.dp)
+                                        .background(statusColor.copy(alpha = 0.5f))
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // Informação de tempo médio de permanência
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = MutedForegroundDark,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "As pessoas costumam ficar ${data.averageStayMinutes} min aqui",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MutedForegroundDark
+                        )
+                    )
+                }
+            } ?: run {
+                // Estado vazio
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Dados não disponíveis",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = MutedForegroundDark
+                        )
+                    )
+                }
             }
         }
     }

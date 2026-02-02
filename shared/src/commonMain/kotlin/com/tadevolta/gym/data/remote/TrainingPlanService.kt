@@ -6,17 +6,13 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.utils.io.*
 import com.tadevolta.gym.utils.config.EnvironmentConfig
 import kotlinx.serialization.json.Json
 
 interface TrainingPlanService {
     suspend fun getTrainingPlans(studentId: String? = null, status: String? = null): Result<List<TrainingPlan>>
     suspend fun getTrainingPlanById(id: String): Result<TrainingPlan>
-    suspend fun updateExerciseExecution(
-        planId: String,
-        exerciseId: String,
-        executedSets: List<ExecutedSet>
-    ): Result<TrainingPlan>
 }
 
 class TrainingPlanServiceImpl(
@@ -85,57 +81,47 @@ class TrainingPlanServiceImpl(
                 return Result.Error(Exception("Erro ao buscar plano de treino: ${errorBody ?: "Erro do servidor"}"))
             }
             
-            // Tentar deserializar diretamente como TrainingPlan primeiro
-            // A API pode retornar o objeto diretamente ou envolto em ApiResponse
-            val json = Json { ignoreUnknownKeys = true }
-            val responseText = response.bodyAsText()
-            
-            return try {
-                // Tentar deserializar como TrainingPlan diretamente
-                val trainingPlan: TrainingPlan = json.decodeFromString(responseText)
-                Result.Success(trainingPlan)
-            } catch (e: kotlinx.serialization.SerializationException) {
-                // Se falhar, tentar como ApiResponse<TrainingPlan>
+            // A API retorna TrainingPlan diretamente, não envolto em ApiResponse
+            // Tentar deserializar diretamente primeiro
+            try {
+                val trainingPlan: TrainingPlan = response.body()
+                return Result.Success(trainingPlan)
+            } catch (e: io.ktor.serialization.JsonConvertException) {
+                // Se falhar, pode ser que esteja tentando deserializar como ApiResponse
+                // Tentar ler como texto e deserializar manualmente
                 try {
-                    val apiResponse: ApiResponse<TrainingPlan> = json.decodeFromString(responseText)
-                    if (apiResponse.success && apiResponse.data != null) {
-                        Result.Success(apiResponse.data)
-                    } else {
-                        Result.Error(Exception(apiResponse.error ?: "Erro ao buscar plano de treino"))
+                    val json = Json { ignoreUnknownKeys = true }
+                    val responseText = response.bodyAsText()
+                    
+                    // Tentar deserializar como TrainingPlan diretamente
+                    try {
+                        val trainingPlan: TrainingPlan = json.decodeFromString(TrainingPlan.serializer(), responseText)
+                        return Result.Success(trainingPlan)
+                    } catch (e2: kotlinx.serialization.SerializationException) {
+                        // Se falhar, tentar como ApiResponse<TrainingPlan> (fallback)
+                        try {
+                            val apiResponse: ApiResponse<TrainingPlan> = json.decodeFromString(
+                                ApiResponse.serializer(TrainingPlan.serializer()), 
+                                responseText
+                            )
+                            if (apiResponse.success && apiResponse.data != null) {
+                                return Result.Success(apiResponse.data)
+                            } else {
+                                return Result.Error(Exception(apiResponse.error ?: "Erro ao buscar plano de treino"))
+                            }
+                        } catch (e3: kotlinx.serialization.SerializationException) {
+                            return Result.Error(Exception("Erro ao processar resposta do servidor. Formato não reconhecido: ${e2.message}"))
+                        }
                     }
                 } catch (e2: Exception) {
-                    Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
+                    return Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
                 }
+            } catch (e: Exception) {
+                return Result.Error(Exception("Erro ao buscar plano de treino: ${e.message}"))
             }
-        } catch (e: io.ktor.serialization.JsonConvertException) {
-            Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
-            Result.Error(e)
+            return Result.Error(Exception("Erro ao buscar plano de treino: ${e.message}"))
         }
     }
     
-    override suspend fun updateExerciseExecution(
-        planId: String,
-        exerciseId: String,
-        executedSets: List<ExecutedSet>
-    ): Result<TrainingPlan> {
-        return try {
-            val response = client.patch("${EnvironmentConfig.API_BASE_URL}/training-plans/$planId/exercises/$exerciseId") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                }
-                contentType(ContentType.Application.Json)
-                setBody(mapOf("executedSets" to executedSets))
-            }
-            val apiResponse: ApiResponse<TrainingPlan> = response.body()
-            
-            if (apiResponse.success && apiResponse.data != null) {
-                Result.Success(apiResponse.data)
-            } else {
-                Result.Error(Exception(apiResponse.error ?: "Erro ao atualizar execução do exercício"))
-            }
-        } catch (e: Exception) {
-            Result.Error(e)
-        }
-    }
 }

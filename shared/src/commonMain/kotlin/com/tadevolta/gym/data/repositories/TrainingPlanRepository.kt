@@ -128,9 +128,6 @@ class TrainingPlanRepository(
             return cacheAge > 5 * 60 * 1000 // 5 minutos
         }
         
-        // Converter ISO string para timestamp
-        val planTimestamp = parseIsoToTimestamp(planUpdatedAt) ?: return true
-        
         // Se cache foi atualizado há mais de 5 minutos, verificar servidor
         val cacheAge = System.currentTimeMillis() - cacheTimestamp
         if (cacheAge > 5 * 60 * 1000) { // 5 minutos
@@ -141,30 +138,6 @@ class TrainingPlanRepository(
         return false
     }
     
-    suspend fun updateExerciseExecution(
-        planId: String,
-        exerciseId: String,
-        executedSets: List<ExecutedSet>
-    ): Result<TrainingPlan> {
-        // Salvar localmente primeiro
-        executedSets.forEach { set ->
-            database.trainingPlanQueries.insertExerciseExecution(
-                id = "${planId}_${exerciseId}_${set.setNumber}",
-                training_plan_id = planId,
-                exercise_id = exerciseId,
-                set_number = set.setNumber.toLong(),
-                planned_reps = set.plannedReps,
-                executed_reps = set.executedReps?.toLong(),
-                planned_weight = set.plannedWeight,
-                executed_weight = set.executedWeight,
-                completed = if (set.completed) 1L else 0L,
-                timestamp = System.currentTimeMillis()
-            )
-        }
-        
-        // Sincronizar com remoto
-        return remoteService.updateExerciseExecution(planId, exerciseId, executedSets)
-    }
 }
 
 // Extension para converter String para Long (timestamp)

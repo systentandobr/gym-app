@@ -21,6 +21,9 @@ import androidx.compose.ui.window.Dialog
 import com.tadevolta.gym.data.models.CheckIn
 import com.tadevolta.gym.data.models.CheckInStats
 import com.tadevolta.gym.ui.theme.*
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.FitnessCenter
 
 @Composable
 fun CheckInCounter(
@@ -182,7 +185,7 @@ fun CheckInErrorModal(
                 
                 // Mensagem
                 Text(
-                    text = "Lamentamos, mas não foi possível fazer check-in. Parece que você não está na sua Unidade (${unitName ?: "Unidade"}).",
+                    text = "Lamentamos, mas não foi possível fazer check-in. Parece que você não está na sua Academia (${unitName ?: "Academia"}).",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = MutedForegroundDark
                     ),
@@ -207,6 +210,182 @@ fun CheckInErrorModal(
                             color = MutedForegroundDark
                         )
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Tipo de modal de resultado do check-in
+ */
+enum class CheckInModalType {
+    SUCCESS,
+    ERROR_LOCATION,
+    ERROR_TRAINING_IN_PROGRESS,
+    ERROR_ALREADY_DONE,
+    ERROR_GENERIC
+}
+
+/**
+ * Mensagens motivacionais de sucesso (rotacionadas)
+ */
+private val successMessages = listOf(
+    "Parabéns! Seu check-in foi realizado continue o seu treino de hoje",
+    "Que maravilha te ver por aqui, está preparado para começar o treino de hoje?",
+    "Excelente! Check-in realizado com sucesso. Vamos treinar?",
+    "Ótimo! Você está aqui. Hora de dar o seu melhor no treino!",
+    "Perfeito! Check-in confirmado. Bora treinar?"
+)
+
+/**
+ * Modal de resultado do check-in com mensagens customizadas
+ */
+@Composable
+fun CheckInResultModal(
+    modalType: CheckInModalType,
+    message: String? = null,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+                .border(
+                    width = 2.dp,
+                    brush = when (modalType) {
+                        CheckInModalType.SUCCESS -> purpleToPinkGradient()
+                        else -> androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFFFF6B6B),
+                                Color(0xFFFF8E8E)
+                            )
+                        )
+                    },
+                    shape = RoundedCornerShape(24.dp)
+                ),
+            colors = CardDefaults.cardColors(containerColor = CardDark),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                // Ícone baseado no tipo
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(
+                            color = CardDarker,
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .background(
+                                brush = when (modalType) {
+                                    CheckInModalType.SUCCESS -> purpleToPinkGradient()
+                                    else -> androidx.compose.ui.graphics.Brush.linearGradient(
+                                        colors = listOf(
+                                            Color(0xFFFF6B6B),
+                                            Color(0xFFFF8E8E)
+                                        )
+                                    )
+                                },
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        when (modalType) {
+                            CheckInModalType.SUCCESS -> {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            CheckInModalType.ERROR_TRAINING_IN_PROGRESS -> {
+                                Icon(
+                                    Icons.Default.FitnessCenter,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            else -> {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // Título
+                Text(
+                    text = when (modalType) {
+                        CheckInModalType.SUCCESS -> "Check-in Realizado!"
+                        CheckInModalType.ERROR_LOCATION -> "Ops! Fora de Alcance"
+                        CheckInModalType.ERROR_TRAINING_IN_PROGRESS -> "Treino em Execução"
+                        CheckInModalType.ERROR_ALREADY_DONE -> "Check-in Já Realizado"
+                        CheckInModalType.ERROR_GENERIC -> "Erro ao Fazer Check-in"
+                    },
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    textAlign = TextAlign.Center
+                )
+                
+                // Mensagem
+                Text(
+                    text = message ?: when (modalType) {
+                        CheckInModalType.SUCCESS -> successMessages.random()
+                        CheckInModalType.ERROR_LOCATION -> "Um check-in só pode ser feito dentro da academia"
+                        CheckInModalType.ERROR_TRAINING_IN_PROGRESS -> "Ao fazer o check-in precisa executar e encerrar o treino"
+                        CheckInModalType.ERROR_ALREADY_DONE -> "Você já realizou check-in hoje. Tente novamente amanhã!"
+                        CheckInModalType.ERROR_GENERIC -> "Não foi possível realizar o check-in. Tente novamente mais tarde."
+                    },
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = MutedForegroundDark
+                    ),
+                    textAlign = TextAlign.Center
+                )
+                
+                // Botão de confirmação
+                GradientButton(
+                    text = when (modalType) {
+                        CheckInModalType.SUCCESS -> "Começar Treino"
+                        else -> "Entendi"
+                    },
+                    onClick = onConfirm,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                // Botão Fechar (apenas para erros)
+                if (modalType != CheckInModalType.SUCCESS) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Fechar",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = MutedForegroundDark
+                            )
+                        )
+                    }
                 }
             }
         }

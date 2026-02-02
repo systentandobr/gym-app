@@ -330,7 +330,7 @@ fun OnboardingUnitScreen(
                                         )
                                     )
                                     Text(
-                                        text = "Você pode continuar sem selecionar uma unidade e fornecer os dados da sua academia para captura de lead.",
+                                        text = "Você pode continuar sem selecionar uma unidade e fornecer os dados da sua academia para mantermos contato e recomendarmos o app.",
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             color = MutedForegroundDark
                                         )
@@ -338,9 +338,11 @@ fun OnboardingUnitScreen(
                                 }
                             }
                             GradientButton(
-                                text = "Seguir sem Unidade",
+                                text = "Indique sua Academia",
                                 onClick = {
-                                    // Navegar para a próxima etapa do onboarding (Goal)
+                                    // Marcar flag de indicação e navegar para a próxima etapa
+                                    viewModel.showContinueWithoutUnit(true)
+                                    viewModel.setLeadManualAddress(uiState.manualAddress)
                                     onNext()
                                 },
                                 modifier = Modifier.fillMaxWidth()
@@ -503,7 +505,7 @@ fun OnboardingUnitScreen(
                             // Dados já estão no ViewModel, apenas navegar
                             onNext()
                         },
-                        enabled = uiState.selectedUnit != null || uiState.showContinueWithoutUnit,
+                        enabled = uiState.selectedUnit != null || uiState.showContinueWithoutUnit == false,
                         icon = {
                             Icon(
                                 Icons.Default.ArrowForward,

@@ -1,6 +1,8 @@
 package com.tadevolta.gym.data.repositories
 
 import com.tadevolta.gym.data.models.CachedCredentials
+import com.tadevolta.gym.data.models.State
+import com.tadevolta.gym.data.models.City
 
 interface UserSessionStorage {
     suspend fun saveSelectedUnit(unitId: String, unitName: String)
@@ -14,6 +16,11 @@ interface UserSessionStorage {
     suspend fun getCachedCredentials(): CachedCredentials?
     suspend fun clearCachedCredentials()
     suspend fun isCredentialsCacheValid(): Boolean
+    
+    // Métodos para cache de estados e cidades
+    suspend fun saveStatesAndCities(states: List<State>, cities: List<City>)
+    suspend fun getStates(): List<State>
+    suspend fun getCitiesByState(stateId: String): List<City>
 }
 
 expect class SecureUserSessionStorage : UserSessionStorage {
@@ -27,4 +34,8 @@ expect class SecureUserSessionStorage : UserSessionStorage {
     override suspend fun getCachedCredentials(): CachedCredentials?
     override suspend fun clearCachedCredentials()
     override suspend fun isCredentialsCacheValid(): Boolean
+    
+    override suspend fun saveStatesAndCities(states: List<State>, cities: List<City>)
+    override suspend fun getStates(): List<State>
+    override suspend fun getCitiesByState(stateId: String): List<City>
 }

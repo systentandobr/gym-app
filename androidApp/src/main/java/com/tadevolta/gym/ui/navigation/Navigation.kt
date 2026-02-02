@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
 import java.net.URLDecoder
 
 sealed class Screen(val route: String, val title: String) {
-    object OnboardingUnit : Screen("onboarding/unit", "Selecionar Unidade")
+    object OnboardingUnit : Screen("onboarding/unit", "Selecionar Academia")
     object OnboardingGoal : Screen("onboarding/goal", "Definir Objetivo")
     object OnboardingGender : Screen("onboarding/gender", "Escolher Perfil")
     object OnboardingLeadDetails : Screen("onboarding/lead_details", "Informações de Lead")
@@ -187,15 +187,14 @@ fun AppNavigation(
                 viewModel = sharedViewModel,
                 onNext = {
                     navController.navigate(Screen.OnboardingGoal.route)
+                    val uiState = sharedViewModel.uiState.value
+                    // Verificar se veio de "Indique sua Academia"
+                    if (uiState.showContinueWithoutUnit) {
+                        navController.navigate(Screen.OnboardingLeadDetails.route)
+                    } 
                 },
                 onNavigateToSignUp = {
-                    // Verificar se veio de "Seguir sem Unidade"
-                    val uiState = sharedViewModel.uiState.value
-                    if (uiState.showContinueWithoutUnit && uiState.manualAddress.isNotBlank()) {
-                        navController.navigate(Screen.OnboardingLeadDetails.route)
-                    } else {
-                        navController.navigate(Screen.SignUp.route)
-                    }
+                    
                 },
                 onNavigateToLogin = {
                     navController.navigate(Screen.Login.route) {
@@ -496,7 +495,11 @@ fun AppNavigation(
         }
         
         composable(Screen.CheckIn.route) {
-            CheckInScreen()
+            CheckInScreen(
+                onNavigateToTrainingPlan = { studentId ->
+                    navController.navigate("training_plans/$studentId")
+                }
+            )
         }
         
         composable(Screen.Ranking.route) {

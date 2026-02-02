@@ -16,13 +16,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import com.tadevolta.gym.ui.components.*
 import com.tadevolta.gym.ui.theme.*
 import com.tadevolta.gym.ui.viewmodels.DashboardViewModel
+import com.tadevolta.gym.ui.viewmodels.UnitOccupancyViewModel
 
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
+    occupancyViewModel: UnitOccupancyViewModel = hiltViewModel(),
     onNavigateToTrainingPlan: (String) -> Unit = {},
     onNavigateToCheckIn: () -> Unit = {},
     onNavigateToRanking: () -> Unit = {},
@@ -30,6 +34,22 @@ fun DashboardScreen(
     onNavigateToTrainingPlans: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val occupancyState by occupancyViewModel.uiState.collectAsState()
+    
+    // Carregar dados de ocupação quando unitId estiver disponível
+    LaunchedEffect(uiState.user?.unitId) {
+        uiState.user?.unitId?.let { unitId ->
+            occupancyViewModel.loadOccupancyData(unitId)
+            occupancyViewModel.startPeriodicRefresh(unitId, intervalMinutes = 5)
+        }
+    }
+    
+    // Limpar refresh periódico quando sair da tela
+    DisposableEffect(Unit) {
+        onDispose {
+            occupancyViewModel.stopPeriodicRefresh()
+        }
+    }
     
     Box(
         modifier = Modifier
@@ -146,6 +166,19 @@ fun DashboardScreen(
                     // Mostrar gráfico vazio se não houver dados
                     WeeklyActivityChart(
                         days = listOf("D" to false, "S" to false, "T" to false, "Q" to false, "Q" to false, "S" to false, "S" to false)
+                    )
+                }
+            }
+            
+            // Horários de Pico
+            item {
+                uiState.user?.unitId?.let { unitId ->
+                    PeakHoursCard(
+                        occupancyData = occupancyState.occupancyData,
+                        selectedDayOfWeek = occupancyState.selectedDayOfWeek,
+                        onDaySelected = { dayOfWeek ->
+                            occupancyViewModel.selectDayOfWeek(unitId, dayOfWeek)
+                        }
                     )
                 }
             }

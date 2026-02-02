@@ -25,8 +25,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.PagerState
 import coil.compose.AsyncImage
 import com.tadevolta.gym.ui.theme.*
+import kotlinx.coroutines.delay
 
 @Composable
 fun ExerciseExecutionHeader(
@@ -125,6 +130,7 @@ fun ExerciseExecutionHeader(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ExerciseMediaCard(
     imageUrl: String?,
@@ -134,6 +140,23 @@ fun ExerciseMediaCard(
     // Construir lista de URLs de imagens (priorizar images se disponível)
     val imageUrls = images?.mapNotNull { com.tadevolta.gym.utils.ImageUrlBuilder.buildImageUrl(it) }
         ?: listOfNotNull(com.tadevolta.gym.utils.ImageUrlBuilder.buildImageUrl(imageUrl))
+    
+    val pageCount = imageUrls.size.coerceAtLeast(1)
+    val pagerState = rememberPagerState(
+        initialPage = 0,
+        pageCount = { pageCount }
+    )
+    
+    // Auto-play: mudar de página a cada 7 segundos
+    LaunchedEffect(pagerState.currentPage, imageUrls.size) {
+        if (imageUrls.size > 1) {
+            while (true) {
+                delay(7000) // 7 segundos
+                val nextPage = (pagerState.currentPage + 1) % imageUrls.size
+                pagerState.scrollToPage(nextPage)
+            }
+        }
+    }
     
     Box(
         modifier = Modifier
@@ -145,12 +168,50 @@ fun ExerciseMediaCard(
     ) {
         // Mostrar imagem do exercício se disponível
         if (imageUrls.isNotEmpty()) {
-            AsyncImage(
-                model = imageUrls.first(),
-                contentDescription = "Exercício",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-            )
+            if (imageUrls.size > 1) {
+                // Carrossel com múltiplas imagens
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    AsyncImage(
+                        model = imageUrls[page],
+                        contentDescription = "Exercício - Imagem ${page + 1}",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                }
+                
+                // Indicadores de página (dots)
+                if (imageUrls.size > 1) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 50.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        repeat(imageUrls.size) { index ->
+                            val isSelected = pagerState.currentPage == index
+                            Box(
+                                modifier = Modifier
+                                    .size(if (isSelected) 8.dp else 6.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f)
+                                    )
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Apenas uma imagem
+                AsyncImage(
+                    model = imageUrls.first(),
+                    contentDescription = "Exercício",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            }
         } else {
             // Fallback: ícone quando não há imagem
             Box(

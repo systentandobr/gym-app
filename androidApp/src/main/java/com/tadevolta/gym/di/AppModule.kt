@@ -102,6 +102,17 @@ object AppModule {
     
     @Provides
     @Singleton
+    fun provideTrainingService(
+        client: HttpClient,
+        tokenStorage: SecureTokenStorage
+    ): TrainingService {
+        return TrainingServiceImpl(client) { 
+            kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+        }
+    }
+    
+    @Provides
+    @Singleton
     fun provideSubscriptionService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage
@@ -201,6 +212,15 @@ object AppModule {
     
     @Provides
     @Singleton
+    fun provideTrainingRepository(
+        trainingService: TrainingService,
+        database: TadevoltaDatabase
+    ): TrainingRepository {
+        return TrainingRepository(trainingService, database)
+    }
+    
+    @Provides
+    @Singleton
     fun provideGetTrainingPlanUseCase(
         repository: TrainingPlanRepository
     ): GetTrainingPlanUseCase {
@@ -210,7 +230,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideExecuteExerciseUseCase(
-        repository: TrainingPlanRepository
+        repository: TrainingRepository
     ): ExecuteExerciseUseCase {
         return ExecuteExerciseUseCase(repository)
     }
@@ -226,6 +246,17 @@ object AppModule {
     
     @Provides
     @Singleton
+    fun provideReferralService(
+        client: HttpClient,
+        tokenStorage: SecureTokenStorage
+    ): ReferralService {
+        return ReferralServiceImpl(client) { 
+            kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+        }
+    }
+    
+    @Provides
+    @Singleton
     fun provideStudentService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage
@@ -233,5 +264,19 @@ object AppModule {
         return StudentServiceImpl(client) { 
             kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
         }
+    }
+    
+    @Provides
+    @Singleton
+    fun provideUnitOccupancyService(
+        client: HttpClient,
+        tokenStorage: SecureTokenStorage
+    ): UnitOccupancyService {
+        return UnitOccupancyServiceImpl(
+            client = client,
+            tokenProvider = { 
+                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+            }
+        )
     }
 }

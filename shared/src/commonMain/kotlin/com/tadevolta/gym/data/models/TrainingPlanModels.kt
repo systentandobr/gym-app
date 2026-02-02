@@ -52,8 +52,7 @@ data class Exercise(
     val weight: Double? = null,
     val restTime: Int? = null, // segundos
     val notes: String? = null,
-    // Campos para execução
-    val executedSets: List<ExecutedSet>? = null,
+    // Removido executedSets - agora está em TrainingExecution
     val imageUrl: String? = null, // GIF ou imagem (mantido para compatibilidade)
     val images: List<String>? = null, // Array de imagens do catálogo
     val videoUrl: String? = null,
@@ -81,24 +80,63 @@ data class ExecutedSet(
     val timestamp: String? = null
 )
 
-@Serializable
+@Serializable(with = TrainingPlanStatusSerializer::class)
 enum class TrainingPlanStatus {
-    @Serializable(with = TrainingPlanStatusSerializer::class)
     ACTIVE,
-    @Serializable(with = TrainingPlanStatusSerializer::class)
     PAUSED,
-    @Serializable(with = TrainingPlanStatusSerializer::class)
     COMPLETED
 }
 
-@Serializable
+@Serializable(with = ExerciseDifficultySerializer::class)
 enum class ExerciseDifficulty {
-    @Serializable(with = ExerciseDifficultySerializer::class)
     BEGINNER,
-    @Serializable(with = ExerciseDifficultySerializer::class)
     INTERMEDIATE,
-    @Serializable(with = ExerciseDifficultySerializer::class)
     ADVANCED
+}
+
+/**
+ * Modelo para exercício do catálogo retornado pela API /exercises/{id}
+ * Tem campos diferentes do modelo Exercise usado em planos de treino
+ */
+@Serializable
+data class CatalogExercise(
+    val id: String,
+    val unitId: String,
+    val name: String,
+    val description: String? = null,
+    val muscleGroups: List<String>? = null,
+    val equipment: List<String>? = null,
+    val defaultSets: Int? = null,
+    val defaultReps: String? = null,
+    val defaultRestTime: Int? = null,
+    val difficulty: ExerciseDifficulty? = null,
+    val targetGender: String? = null, // "male", "female", "other"
+    val images: List<String>? = null,
+    val isActive: Boolean = true,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+) {
+    /**
+     * Converte CatalogExercise para Exercise usado em planos de treino
+     */
+    fun toExercise(): Exercise {
+        return Exercise(
+            exerciseId = id,
+            name = name,
+            sets = defaultSets ?: 3,
+            reps = defaultReps ?: "10-12",
+            weight = null,
+            restTime = defaultRestTime,
+            notes = description,
+            imageUrl = images?.firstOrNull(),
+            images = images,
+            videoUrl = null,
+            description = description,
+            muscleGroups = muscleGroups,
+            equipment = equipment,
+            difficulty = difficulty
+        )
+    }
 }
 
 @Serializable

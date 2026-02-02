@@ -24,7 +24,7 @@ data class SignUpUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val isSignUpSuccessful: Boolean = false,
-    // Campos para dados do lead quando vem de "Seguir sem Unidade"
+    // Campos para dados do lead quando vem de "Indique sua Academia"
     val cameFromWithoutUnit: Boolean = false,
     val gymName: String? = null,
     val gymAddress: String? = null,
@@ -199,17 +199,17 @@ class SignUpViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(error = "Localização é obrigatória. Use o botão 'Usar minha localização'")
                 return
             }
-            // Removida validação obrigatória de unitId - pode ser null quando vem de "Seguir sem Unidade"
+            // Removida validação obrigatória de unitId - pode ser null quando vem de "Indique sua Academia"
         }
         
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
-            // Determinar unitName: usar gymName se vier de "Seguir sem Unidade" e unitName estiver vazio
+            // Determinar unitName: usar gymName se vier de "Indique sua Academia" e unitName estiver vazio
             val finalUnitName = when {
                 !unitName.isNullOrBlank() -> unitName
                 _uiState.value.cameFromWithoutUnit && !_uiState.value.gymName.isNullOrBlank() -> _uiState.value.gymName
-                else -> "Sem Unidade" // Valor padrão quando não tem unidade
+                else -> "Indique sua Academia" // Valor padrão quando não tem unidade
             }
             
             when (val result = authRepository.signUp(
@@ -234,7 +234,7 @@ class SignUpViewModel @Inject constructor(
                         isSignUpSuccessful = true
                     )
                     
-                    // Se veio de "Seguir sem Unidade", enviar lead após cadastro bem-sucedido
+                    // Se veio de "Indique sua Academia", enviar lead após cadastro bem-sucedido
                     if (_uiState.value.cameFromWithoutUnit) {
                         sendLeadAfterSignUp(name, email)
                     }
@@ -284,7 +284,7 @@ class SignUpViewModel @Inject constructor(
             phone = state.gymPhone ?: "",
             city = state.gymCity,
             state = state.gymState,
-            unitId = null, // Não tem unitId quando vem de "Seguir sem Unidade"
+            unitId = null, // Não tem unitId quando vem de "Indique sua Academia"
             marketSegment = "gym",
             userType = "student", // Aluno interessado em se matricular
             objectives = state.goal?.let {

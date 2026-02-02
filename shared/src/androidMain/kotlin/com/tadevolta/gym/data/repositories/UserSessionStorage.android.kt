@@ -5,12 +5,20 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.tadevolta.gym.data.models.CachedCredentials
+import com.tadevolta.gym.data.models.State
+import com.tadevolta.gym.data.models.City
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
 import javax.crypto.AEADBadTagException
 import java.io.IOException
 import android.util.Log
+
+// Helper function para serializar listas
+private inline fun <reified T> encodeList(json: Json, list: List<T>): String {
+    return json.encodeToString(serializer<List<T>>(), list)
+}
 
 actual class SecureUserSessionStorage(
     private val context: Context
@@ -153,5 +161,39 @@ actual class SecureUserSessionStorage(
     actual override suspend fun isCredentialsCacheValid(): Boolean {
         val credentials = getCachedCredentials()
         return credentials != null && credentials.isValid()
+    }
+    
+    actual override suspend fun saveStatesAndCities(states: List<State>, cities: List<City>) {
+        try {
+            val statesJson = encodeList(json, states)
+            val citiesJson = encodeList(json, cities)
+            sharedPreferences.edit()
+                .putString("cached_states", statesJson)
+                .putString("cached_cities", citiesJson)
+                .apply()
+        } catch (e: Exception) {
+            Log.e("SecureUserSessionStorage", "Erro ao salvar estados e cidades: ${e.message}", e)
+        }
+    }
+    
+    actual override suspend fun getStates(): List<State> {
+        val statesJson = safeRead { sharedPreferences.getString("cached_states", null) } ?: return emptyList()
+        return try {
+            json.decodeFromString<List<State>>(statesJson)
+        } catch (e: Exception) {
+            Log.e("SecureUserSessionStorage", "Erro ao decodificar estados: ${e.message}", e)
+            emptyList()
+        }
+    }
+    
+    actual override suspend fun getCitiesByState(stateId: String): List<City> {
+        val citiesJson = safeRead { sharedPreferences.getString("cached_cities", null) } ?: return emptyList()
+        return try {
+            val allCities = json.decodeFromString<List<City>>(citiesJson)
+            allCities.filter { it.stateId == stateId }
+        } catch (e: Exception) {
+            Log.e("SecureUserSessionStorage", "Erro ao decodificar cidades: ${e.message}", e)
+            emptyList()
+        }
     }
 }

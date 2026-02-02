@@ -8,10 +8,12 @@ import com.tadevolta.gym.data.models.*
 import com.tadevolta.gym.data.remote.FranchiseService
 import com.tadevolta.gym.data.remote.LeadService
 import com.tadevolta.gym.data.remote.LocationRequiredException
+import com.tadevolta.gym.data.remote.ReferralService
 import com.tadevolta.gym.data.remote.StudentService
 import com.tadevolta.gym.data.repositories.AuthRepository
 import com.tadevolta.gym.data.repositories.UserSessionStorage
 import com.tadevolta.gym.utils.LocationHelper
+import com.tadevolta.gym.utils.BrazilianStates
 import com.tadevolta.gym.utils.config.DEFAULT_UNIT_ID
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -119,13 +121,21 @@ data class OnboardingSharedUiState(
     val fitnessLevel: FitnessLevel? = null,
     val emergencyContactName: String? = null,
     val emergencyContactPhone: String? = null,
-    val emergencyContactRelationship: String? = null
+    val emergencyContactRelationship: String? = null,
+    
+    // Estados e cidades para formulário
+    val states: List<com.tadevolta.gym.data.models.State> = emptyList(),
+    val cities: List<com.tadevolta.gym.data.models.City> = emptyList(),
+    val selectedStateId: String? = null,
+    val leadZipCode: String = "",
+    val leadNeighborhood: String = ""
 )
 
 @HiltViewModel
 class OnboardingSharedViewModel @Inject constructor(
     private val franchiseService: FranchiseService,
     private val leadService: LeadService,
+    private val referralService: ReferralService,
     private val authRepository: AuthRepository,
     private val userSessionStorage: UserSessionStorage,
     private val studentService: StudentService,
@@ -137,6 +147,11 @@ class OnboardingSharedViewModel @Inject constructor(
     
     private val _uiState = MutableStateFlow(OnboardingSharedUiState())
     val uiState: StateFlow<OnboardingSharedUiState> = _uiState.asStateFlow()
+    
+    init {
+        // Carregar estados e cidades ao inicializar
+        loadStatesAndCities()
+    }
     
     // ========== Métodos de Unidade (OnboardingViewModel) ==========
     
@@ -172,7 +187,7 @@ class OnboardingSharedViewModel @Inject constructor(
                         hasTriedLocationSearch = true
                     )
                     
-                    // Se não encontrou unidades após busca por localização, habilitar "Seguir sem Unidade"
+                    // Se não encontrou unidades após busca por localização, habilitar "Indique sua Academia"
                     if (unitItems.isEmpty() && latitude != null && longitude != null) {
                         _uiState.value = _uiState.value.copy(
                             showContinueWithoutUnit = true,
@@ -889,7 +904,7 @@ class OnboardingSharedViewModel @Inject constructor(
                 state = addressResult.state,
                 zipCode = addressResult.zipCode,
                 neighborhood = addressResult.neighborhood,
-                complement = addressResult.complement,
+                localNumber = addressResult.complement,
                 latitude = location.latitude,
                 longitude = location.longitude,
                 isLoadingLocation = false,
@@ -980,7 +995,7 @@ class OnboardingSharedViewModel @Inject constructor(
             val finalUnitName = when {
                 !unitName.isNullOrBlank() -> unitName
                 _uiState.value.cameFromWithoutUnit && _uiState.value.gymName.isNotBlank() -> _uiState.value.gymName
-                else -> "Sem Unidade"
+                else -> "Indique sua Academia"
             }
             
             when (val result = authRepository.signUp(
@@ -1273,8 +1288,55 @@ class OnboardingSharedViewModel @Inject constructor(
                 metadata = metadata  // Dados da academia vão aqui
             )
             
-            leadService.postLead(leadRequest)
-            // Não bloquear o fluxo se lead falhar - usuário já está registrado
+            // Enviar lead
+            val leadResult = leadService.postLead(leadRequest)
+            var leadId: String? = null
+            
+            if (leadResult is Result.Success) {
+                leadId = leadResult.data.id
+                android.util.Log.i("OnboardingSharedViewModel", "Lead enviado com sucesso: $leadId")
+            } else {
+                android.util.Log.w("OnboardingSharedViewModel", "Erro ao enviar lead: ${(leadResult as? Result.Error)?.exception?.message}")
+            }
+            
+            // Se veio de indicação, criar referral também
+            if (state.cameFromWithoutUnit) {
+                try {
+                    // Obter userId do usuário atual
+                    val currentUserResult = authRepository.getCurrentUser()
+                    val userId = if (currentUserResult is Result.Success) {
+                        currentUserResult.data.id
+                    } else {
+                        android.util.Log.w("OnboardingSharedViewModel", "Não foi possível obter userId para criar referral")
+                        null
+                    }
+                    
+                    if (userId != null) {
+                        val referralRequest = com.tadevolta.gym.data.models.ReferralRequest(
+                            userId = userId,
+                            leadId = leadId,
+                            gymName = finalGymName.takeIf { it.isNotBlank() },
+                            gymAddress = finalGymAddress.takeIf { it.isNotBlank() },
+                            gymCity = finalGymCity.takeIf { it.isNotBlank() },
+                            gymState = finalGymState.takeIf { it.isNotBlank() },
+                            responsibleName = state.responsibleName.takeIf { it.isNotBlank() },
+                            metadata = metadata
+                        )
+                        
+                        val referralResult = referralService.createReferral(referralRequest)
+                        if (referralResult is Result.Success) {
+                            android.util.Log.i("OnboardingSharedViewModel", "Referral criado com sucesso: ${referralResult.data.id}")
+                        } else {
+                            android.util.Log.w("OnboardingSharedViewModel", "Erro ao criar referral: ${(referralResult as? Result.Error)?.exception?.message}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("OnboardingSharedViewModel", "Erro ao criar referral: ${e.message}", e)
+                    // Não bloquear o fluxo - usuário já está registrado
+                }
+            }
+            
+            // Não bloquear o fluxo se lead ou referral falharem - usuário já está registrado
         } catch (e: Exception) {
             android.util.Log.e("OnboardingSharedViewModel", "Erro ao enviar lead: ${e.message}", e)
             // Não bloquear o fluxo - usuário já está registrado
@@ -1356,5 +1418,59 @@ class OnboardingSharedViewModel @Inject constructor(
         } catch (e: Exception) {
             null
         }
+    }
+    
+    /**
+     * Carrega estados e cidades do cache ou inicializa com lista estática
+     */
+    private fun loadStatesAndCities() {
+        viewModelScope.launch {
+            val cachedStates = userSessionStorage.getStates()
+            if (cachedStates.isNotEmpty()) {
+                _uiState.value = _uiState.value.copy(states = cachedStates)
+            } else {
+                // Carregar lista estática de estados brasileiros
+                val states = BrazilianStates.states
+                _uiState.value = _uiState.value.copy(states = states)
+                // Salvar no cache
+                userSessionStorage.saveStatesAndCities(states, emptyList())
+            }
+        }
+    }
+    
+    /**
+     * Atualiza o estado selecionado e carrega cidades correspondentes
+     */
+    fun updateSelectedState(stateId: String) {
+        viewModelScope.launch {
+            val cities = userSessionStorage.getCitiesByState(stateId)
+            _uiState.value = _uiState.value.copy(
+                selectedStateId = stateId,
+                cities = cities,
+                leadState = BrazilianStates.states.find { it.id == stateId }?.uf ?: ""
+            )
+        }
+    }
+    
+    /**
+     * Atualiza CEP do lead
+     */
+    fun updateLeadZipCode(zipCode: String) {
+        _uiState.value = _uiState.value.copy(leadZipCode = zipCode)
+    }
+    
+    /**
+     * Atualiza bairro do lead
+     */
+    fun updateLeadNeighborhood(neighborhood: String) {
+        _uiState.value = _uiState.value.copy(leadNeighborhood = neighborhood)
+    }
+    
+    /**
+     * Atualiza cidade selecionada do lead
+     */
+    fun updateSelectedCity(cityId: String) {
+        val city = _uiState.value.cities.find { it.id == cityId }
+        _uiState.value = _uiState.value.copy(leadCity = city?.name ?: "")
     }
 }

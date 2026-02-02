@@ -4,9 +4,11 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -15,6 +17,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.*
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import com.tadevolta.gym.data.models.Gender
@@ -41,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tadevolta.gym.ui.components.*
 import com.tadevolta.gym.ui.theme.*
+import com.tadevolta.gym.ui.theme.purpleToPinkGradient
 import com.tadevolta.gym.ui.utils.DateMaskTransformation
 import com.tadevolta.gym.ui.utils.formatDateInput
 import com.tadevolta.gym.ui.utils.CpfMaskTransformation
@@ -59,9 +63,18 @@ fun SignUpScreen(
     // Os dados já estão no OnboardingSharedViewModel, não precisa sincronizar
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
+    var showThankYouModal by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val locationHelper = remember { LocationHelper(context) }
     val coroutineScope = rememberCoroutineScope()
+    
+    // Mostrar modal de agradecimento quando signup completar e veio de indicação
+    LaunchedEffect(uiState.signUpStep, uiState.cameFromWithoutUnit) {
+        if (uiState.signUpStep == com.tadevolta.gym.ui.viewmodels.SignUpStep.COMPLETED && 
+            uiState.cameFromWithoutUnit) {
+            showThankYouModal = true
+        }
+    }
     
     // Launcher para permissão de localização
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -75,9 +88,10 @@ fun SignUpScreen(
         }
     }
     
-    // Navegar apenas quando todas as requisições completarem
-    LaunchedEffect(uiState.signUpStep) {
-        if (uiState.signUpStep == com.tadevolta.gym.ui.viewmodels.SignUpStep.COMPLETED) {
+    // Navegar apenas quando todas as requisições completarem e modal não estiver aberto
+    LaunchedEffect(uiState.signUpStep, showThankYouModal) {
+        if (uiState.signUpStep == com.tadevolta.gym.ui.viewmodels.SignUpStep.COMPLETED && 
+            !uiState.cameFromWithoutUnit && !showThankYouModal) {
             // Pequeno delay para garantir que todas as requisições foram processadas
             kotlinx.coroutines.delay(500)
             onSignUpSuccess()
@@ -423,6 +437,99 @@ fun SignUpScreen(
             }
             
             Spacer(modifier = Modifier.height(16.dp))
+        }
+        
+        // Modal de Agradecimento
+        if (showThankYouModal) {
+            ThankYouModal(
+                onDismiss = {
+                    showThankYouModal = false
+                    // Navegar após fechar modal
+                    onSignUpSuccess()
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThankYouModal(
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+                .border(
+                    width = 2.dp,
+                    brush = purpleToPinkGradient(),
+                    shape = RoundedCornerShape(24.dp)
+                ),
+            colors = CardDefaults.cardColors(containerColor = CardDark),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                // Ícone de agradecimento
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(
+                            color = CardDarker,
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .background(
+                                brush = purpleToPinkGradient(),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                }
+                
+                // Título
+                Text(
+                    text = "Agradecemos pela Indicação!",
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                
+                // Mensagem
+                Text(
+                    text = "Os dados da sua academia serão analisados e logo entraremos em contato para liberar o acesso ao aplicativo.",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = MutedForegroundDark
+                    ),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                
+                // Botão OK
+                GradientButton(
+                    text = "Entendi",
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
