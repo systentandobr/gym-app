@@ -30,7 +30,9 @@ class UserServiceImpl(
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
-                        url("${EnvironmentConfig.API_BASE_URL}/users/profile")
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/users/profile")
+                        }
                         method = HttpMethod.Get
                         headers {
                             tokenProvider()?.let { append("Authorization", "Bearer $it") }
@@ -72,7 +74,9 @@ class UserServiceImpl(
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
-                        url("${EnvironmentConfig.API_BASE_URL}/users/profile")
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/users/profile")
+                        }
                         method = HttpMethod.Patch
                         headers {
                             tokenProvider()?.let { append("Authorization", "Bearer $it") }

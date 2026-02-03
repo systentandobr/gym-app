@@ -1,6 +1,8 @@
 package com.tadevolta.gym.data.remote
 
 import com.tadevolta.gym.data.models.*
+import com.tadevolta.gym.data.repositories.AuthRepository
+import com.tadevolta.gym.utils.auth.UnauthenticatedException
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -18,15 +20,34 @@ interface UnitOccupancyService {
 
 class UnitOccupancyServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?
+    private val tokenProvider: () -> String?,
+    private val authRepository: AuthRepository? = null
 ) : UnitOccupancyService {
     
     override suspend fun getUnitOccupancy(unitId: String, dayOfWeek: Int?): Result<UnitOccupancyResponse> {
         return try {
-            // Usar endpoint específico para buscar CHECK_INs ativos (sem WORKOUT_COMPLETION)
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/units/$unitId/occupancy") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/gamification/units/$unitId/occupancy")
+                        }
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/gamification/units/$unitId/occupancy") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
@@ -79,6 +100,8 @@ class UnitOccupancyServiceImpl(
                     averageStayMinutes = averageStayMinutes
                 )
             )
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             // Em caso de erro, retornar dados vazios ao invés de quebrar
             val currentDayOfWeek = dayOfWeek ?: getCurrentDayOfWeek()

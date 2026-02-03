@@ -1,6 +1,8 @@
 package com.tadevolta.gym.data.remote
 
 import com.tadevolta.gym.data.models.*
+import com.tadevolta.gym.data.repositories.AuthRepository
+import com.tadevolta.gym.utils.auth.UnauthenticatedException
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -28,7 +30,8 @@ interface StudentService {
 
 class StudentServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?
+    private val tokenProvider: () -> String?,
+    private val authRepository: AuthRepository? = null
 ) : StudentService {
     
     override suspend fun createStudent(
@@ -92,13 +95,35 @@ class StudentServiceImpl(
                 }
             }
             
-            val response = client.post("${EnvironmentConfig.API_BASE_URL}/students") {
-                headers {
-                    append("Authorization", "Bearer $token")
-                    append("Content-Type", "application/json")
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/students")
+                        }
+                        method = HttpMethod.Post
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                            append("Content-Type", "application/json")
+                        }
+                        contentType(ContentType.Application.Json)
+                        setBody(jsonBody)
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.post("${EnvironmentConfig.API_BASE_URL}/students") {
+                    headers {
+                        append("Authorization", "Bearer $token")
+                        append("Content-Type", "application/json")
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(jsonBody)
                 }
-                contentType(ContentType.Application.Json)
-                setBody(jsonBody)
             }
             
             // Verificar status HTTP
@@ -122,6 +147,8 @@ class StudentServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao criar aluno"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -129,15 +156,32 @@ class StudentServiceImpl(
     
     override suspend fun getStudentByUserId(userId: String): Result<Student> {
         return try {
-            val token = tokenProvider()
-            if (token == null) {
-                return Result.Error(Exception("Token de autenticação não disponível"))
-            }
-            
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/students/by-user/$userId") {
-                headers {
-                    append("Authorization", "Bearer $token")
-                    append("Content-Type", "application/json")
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url("${EnvironmentConfig.API_BASE_URL}/students/by-user/$userId")
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                            append("Content-Type", "application/json")
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                val token = tokenProvider()
+                if (token == null) {
+                    return Result.Error(Exception("Token de autenticação não disponível"))
+                }
+                client.get("${EnvironmentConfig.API_BASE_URL}/students/by-user/$userId") {
+                    headers {
+                        append("Authorization", "Bearer $token")
+                        append("Content-Type", "application/json")
+                    }
                 }
             }
             
@@ -162,6 +206,8 @@ class StudentServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Aluno não encontrado"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -174,10 +220,6 @@ class StudentServiceImpl(
         phone: String?
     ): Result<Student> {
         return try {
-            val token = tokenProvider()
-            if (token == null) {
-                return Result.Error(Exception("Token de autenticação não disponível"))
-            }
             
             // Construir JSON apenas com campos fornecidos
             val jsonBody = buildJsonObject {
@@ -186,13 +228,39 @@ class StudentServiceImpl(
                 phone?.let { put("phone", it) }
             }
             
-            val response = client.patch("${EnvironmentConfig.API_BASE_URL}/students/$studentId") {
-                headers {
-                    append("Authorization", "Bearer $token")
-                    append("Content-Type", "application/json")
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/students/$studentId")
+                        }
+                        method = HttpMethod.Patch
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                            append("Content-Type", "application/json")
+                        }
+                        contentType(ContentType.Application.Json)
+                        setBody(jsonBody)
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                val token = tokenProvider()
+                if (token == null) {
+                    return Result.Error(Exception("Token de autenticação não disponível"))
                 }
-                contentType(ContentType.Application.Json)
-                setBody(jsonBody)
+                client.patch("${EnvironmentConfig.API_BASE_URL}/students/$studentId") {
+                    headers {
+                        append("Authorization", "Bearer $token")
+                        append("Content-Type", "application/json")
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(jsonBody)
+                }
             }
             
             // Verificar status HTTP
@@ -216,6 +284,8 @@ class StudentServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao atualizar aluno"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             Result.Error(e)
         }

@@ -1,6 +1,8 @@
 package com.tadevolta.gym.data.remote
 
 import com.tadevolta.gym.data.models.*
+import com.tadevolta.gym.data.repositories.AuthRepository
+import com.tadevolta.gym.utils.auth.UnauthenticatedException
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -16,15 +18,34 @@ interface SubscriptionService {
 
 class SubscriptionServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?
+    private val tokenProvider: () -> String?,
+    private val authRepository: AuthRepository? = null
 ) : SubscriptionService {
     
     override suspend fun getSubscription(studentId: String): Result<StudentSubscription> {
         return try {
-            // Buscar subscription do student
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/students/$studentId") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/students/$studentId")
+                        }
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/students/$studentId") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             val studentResponse: ApiResponse<Student> = response.body()
@@ -34,6 +55,8 @@ class SubscriptionServiceImpl(
             } else {
                 Result.Error(Exception("Assinatura não encontrada"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -41,9 +64,28 @@ class SubscriptionServiceImpl(
     
     override suspend fun getSubscriptionPlans(): Result<List<SubscriptionPlan>> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/subscriptions/plans") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/subscriptions/plans")
+                        }
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/subscriptions/plans") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             val apiResponse: ApiResponse<List<SubscriptionPlan>> = response.body()
@@ -53,6 +95,8 @@ class SubscriptionServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar planos de assinatura"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             Result.Error(e)
         }

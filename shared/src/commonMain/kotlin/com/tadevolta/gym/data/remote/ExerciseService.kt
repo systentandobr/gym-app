@@ -1,6 +1,8 @@
 package com.tadevolta.gym.data.remote
 
 import com.tadevolta.gym.data.models.*
+import com.tadevolta.gym.data.repositories.AuthRepository
+import com.tadevolta.gym.utils.auth.UnauthenticatedException
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -21,14 +23,34 @@ interface ExerciseService {
 
 class ExerciseServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?
+    private val tokenProvider: () -> String?,
+    private val authRepository: AuthRepository? = null
 ) : ExerciseService {
     
     override suspend fun getExercise(id: String): Result<Exercise> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/exercises/$id") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/exercises/$id")
+                        }
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/exercises/$id") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
@@ -92,6 +114,8 @@ class ExerciseServiceImpl(
             } catch (e: Exception) {
                 return Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
             }
+        } catch (e: UnauthenticatedException) {
+            return Result.Error(e)
         } catch (e: Exception) {
             return Result.Error(Exception("Erro ao buscar exercício: ${e.message}"))
         }

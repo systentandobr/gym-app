@@ -1,6 +1,8 @@
 package com.tadevolta.gym.data.remote
 
 import com.tadevolta.gym.data.models.*
+import com.tadevolta.gym.data.repositories.AuthRepository
+import com.tadevolta.gym.utils.auth.UnauthenticatedException
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -20,14 +22,34 @@ interface GamificationService {
 
 class GamificationServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?
+    private val tokenProvider: () -> String?,
+    private val authRepository: AuthRepository? = null
 ) : GamificationService {
     
     override suspend fun getGamificationData(userId: String): Result<GamificationData> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$userId") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/gamification/students/$userId")
+                        }
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$userId") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
@@ -63,6 +85,8 @@ class GamificationServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar dados de gamificação"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: io.ktor.serialization.JsonConvertException) {
             Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
@@ -72,12 +96,33 @@ class GamificationServiceImpl(
     
     override suspend fun getRanking(unitId: String, limit: Int): Result<List<RankingPosition>> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/ranking") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/gamification/ranking")
+                        }
+                        parameter("unitId", unitId)
+                        parameter("limit", limit)
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/gamification/ranking") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
+                    parameter("unitId", unitId)
+                    parameter("limit", limit)
                 }
-                parameter("unitId", unitId)
-                parameter("limit", limit)
             }
             
             // Tratar erro 404
@@ -101,6 +146,8 @@ class GamificationServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar ranking"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: io.ktor.serialization.JsonConvertException) {
             Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
@@ -110,10 +157,26 @@ class GamificationServiceImpl(
     
     override suspend fun getWeeklyActivity(studentId: String): Result<WeeklyActivity> {
         return try {
-            // Usar endpoint correto: /gamification/students/
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/weekly-activity") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/weekly-activity")
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/weekly-activity") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
@@ -138,6 +201,8 @@ class GamificationServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar atividade semanal"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: io.ktor.serialization.JsonConvertException) {
             Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
@@ -147,9 +212,28 @@ class GamificationServiceImpl(
     
     override suspend fun shareProgress(userId: String): Result<ShareableProgress> {
         return try {
-            val response = client.post("${EnvironmentConfig.API_BASE_URL}/gamification/students/$userId/share") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/gamification/students/$userId/share")
+                        }
+                        method = HttpMethod.Post
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.post("${EnvironmentConfig.API_BASE_URL}/gamification/students/$userId/share") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
@@ -174,6 +258,8 @@ class GamificationServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao gerar compartilhamento"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: io.ktor.serialization.JsonConvertException) {
             Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
@@ -183,9 +269,26 @@ class GamificationServiceImpl(
     
     override suspend fun getTeamMetrics(teamId: String): Result<TeamMetrics> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/teams/$teamId/metrics") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url("${EnvironmentConfig.API_BASE_URL}/gamification/teams/$teamId/metrics")
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/gamification/teams/$teamId/metrics") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
@@ -220,6 +323,8 @@ class GamificationServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar métricas do time"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: io.ktor.serialization.JsonConvertException) {
             Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
@@ -229,11 +334,31 @@ class GamificationServiceImpl(
     
     override suspend fun getTeamsRanking(unitId: String): Result<List<TeamRankingPosition>> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/teams/ranking") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/gamification/teams/ranking")
+                        }
+                        parameter("unitId", unitId)
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/gamification/teams/ranking") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
+                    parameter("unitId", unitId)
                 }
-                parameter("unitId", unitId)
             }
             
             // Tratar erro 404
@@ -267,6 +392,8 @@ class GamificationServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar ranking de times"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: io.ktor.serialization.JsonConvertException) {
             Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {

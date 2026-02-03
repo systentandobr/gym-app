@@ -1,6 +1,8 @@
 package com.tadevolta.gym.data.remote
 
 import com.tadevolta.gym.data.models.*
+import com.tadevolta.gym.data.repositories.AuthRepository
+import com.tadevolta.gym.utils.auth.UnauthenticatedException
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -17,14 +19,34 @@ interface TeamService {
 
 class TeamServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?
+    private val tokenProvider: () -> String?,
+    private val authRepository: AuthRepository? = null
 ) : TeamService {
     
     override suspend fun getTeams(): Result<List<Team>> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/teams") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/teams")
+                        }
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/teams") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
@@ -60,6 +82,8 @@ class TeamServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar times"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: io.ktor.serialization.JsonConvertException) {
             Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
@@ -69,9 +93,26 @@ class TeamServiceImpl(
     
     override suspend fun getTeam(id: String): Result<Team> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/teams/$id") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url("${EnvironmentConfig.API_BASE_URL}/teams/$id")
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/teams/$id") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
@@ -107,6 +148,8 @@ class TeamServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar time"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: io.ktor.serialization.JsonConvertException) {
             Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
@@ -116,9 +159,28 @@ class TeamServiceImpl(
     
     override suspend fun getTeamMetrics(teamId: String): Result<TeamMetrics> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/teams/$teamId/metrics") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/teams/$teamId/metrics")
+                        }
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/teams/$teamId/metrics") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
@@ -154,6 +216,8 @@ class TeamServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar métricas do time"))
             }
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: io.ktor.serialization.JsonConvertException) {
             Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {

@@ -1,6 +1,8 @@
 package com.tadevolta.gym.data.remote
 
 import com.tadevolta.gym.data.models.*
+import com.tadevolta.gym.data.repositories.AuthRepository
+import com.tadevolta.gym.utils.auth.UnauthenticatedException
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -27,80 +29,126 @@ interface TrainingService {
 
 class TrainingServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?
+    private val tokenProvider: () -> String?,
+    private val authRepository: AuthRepository? = null
 ) : TrainingService {
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+    }
+
+    private suspend inline fun <reified T> parseResponse(
+        response: HttpResponse,
+        errorPrefix: String
+    ): Result<T> {
+        if (response.status.value >= 400) {
+            val errorBody = try {
+                response.bodyAsText()
+            } catch (e: Exception) {
+                null
+            }
+            return Result.Error(Exception("$errorPrefix: ${errorBody ?: "Erro do servidor"}"))
+        }
+
+        val bodyString = response.bodyAsText()
+        return try {
+            // Tentar deserializar como ApiResponse primeiro
+            val apiResponse = json.decodeFromString<ApiResponse<T>>(bodyString)
+            if (apiResponse.success) {
+                @Suppress("UNCHECKED_CAST")
+                Result.Success(apiResponse.data as T)
+            } else {
+                Result.Error(Exception(apiResponse.error ?: apiResponse.message ?: errorPrefix))
+            }
+        } catch (e: Exception) {
+            // Se falhar, tentar deserializar diretamente como T
+            try {
+                val data = json.decodeFromString<T>(bodyString)
+                Result.Success(data)
+            } catch (e2: Exception) {
+                Result.Error(Exception("$errorPrefix: Erro ao processar resposta do servidor"))
+            }
+        }
+    }
     
     override suspend fun createTrainingExecution(planId: String): Result<TrainingExecution> {
         return try {
-            val response = client.post("${EnvironmentConfig.API_BASE_URL}/trainings/executions") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/trainings/executions")
+                        }
+                        method = HttpMethod.Post
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                        contentType(ContentType.Application.Json)
+                        setBody(mapOf("trainingPlanId" to planId))
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.post("${EnvironmentConfig.API_BASE_URL}/trainings/executions") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(mapOf("trainingPlanId" to planId))
                 }
-                contentType(ContentType.Application.Json)
-                setBody(mapOf("trainingPlanId" to planId))
             }
             
-            if (response.status.value >= 400) {
-                val errorBody = try {
-                    response.body<String>()
-                } catch (e: Exception) {
-                    null
-                }
-                return Result.Error(Exception("Erro ao criar execução de treino: ${errorBody ?: "Erro do servidor"}"))
-            }
-            
-            // Tentar deserializar como ApiResponse primeiro
-            try {
-                val apiResponse: ApiResponse<TrainingExecution> = response.body()
-                if (apiResponse.success && apiResponse.data != null) {
-                    return Result.Success(apiResponse.data)
-                } else {
-                    return Result.Error(Exception(apiResponse.error ?: "Erro ao criar execução de treino"))
-                }
-            } catch (e: Exception) {
-                // Se falhar, tentar deserializar diretamente como TrainingExecution
-                try {
-                    val trainingExecution: TrainingExecution = response.body()
-                    return Result.Success(trainingExecution)
-                } catch (e2: Exception) {
-                    return Result.Error(Exception("Erro ao deserializar resposta: ${e2.message}"))
-                }
-            }
+            parseResponse(response, "Erro ao criar execução de treino")
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             Result.Error(e)
         }
     }
-    
+
     override suspend fun updateExerciseExecution(
         trainingId: String,
         exerciseId: String,
         executedSets: List<ExecutedSet>
     ): Result<TrainingExecution> {
         return try {
-            val response = client.patch("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId/exercises/$exerciseId") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                }
-                contentType(ContentType.Application.Json)
-                setBody(mapOf("executedSets" to executedSets))
-            }
-            
-            if (response.status.value >= 400) {
-                val errorBody = try {
-                    response.body<String>()
-                } catch (e: Exception) {
-                    null
-                }
-                return Result.Error(Exception("Erro ao atualizar execução do exercício: ${errorBody ?: "Erro do servidor"}"))
-            }
-            
-            val apiResponse: ApiResponse<TrainingExecution> = response.body()
-            
-            if (apiResponse.success && apiResponse.data != null) {
-                Result.Success(apiResponse.data)
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId/exercises/$exerciseId")
+                        }
+                        method = HttpMethod.Patch
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                        contentType(ContentType.Application.Json)
+                        setBody(mapOf("executedSets" to executedSets))
+                    },
+                    responseHandler = { it }
+                )
             } else {
-                Result.Error(Exception(apiResponse.error ?: "Erro ao atualizar execução do exercício"))
+                client.patch("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId/exercises/$exerciseId") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(mapOf("executedSets" to executedSets))
+                }
             }
+            
+            parseResponse(response, "Erro ao atualizar execução do exercício")
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -117,40 +165,36 @@ class TrainingServiceImpl(
                 emptyMap<String, Any>()
             }
             
-            val response = client.patch("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId/complete") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId/complete")
+                        method = HttpMethod.Patch
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                        contentType(ContentType.Application.Json)
+                        setBody(body)
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.patch("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId/complete") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(body)
                 }
-                contentType(ContentType.Application.Json)
-                setBody(body)
             }
             
-            if (response.status.value >= 400) {
-                val errorBody = try {
-                    response.body<String>()
-                } catch (e: Exception) {
-                    null
-                }
-                return Result.Error(Exception("Erro ao finalizar execução de treino: ${errorBody ?: "Erro do servidor"}"))
-            }
-            
-            // Tentar deserializar como ApiResponse primeiro
-            try {
-                val apiResponse: ApiResponse<TrainingExecution> = response.body()
-                if (apiResponse.success && apiResponse.data != null) {
-                    return Result.Success(apiResponse.data)
-                } else {
-                    return Result.Error(Exception(apiResponse.error ?: "Erro ao finalizar execução de treino"))
-                }
-            } catch (e: Exception) {
-                // Se falhar, tentar deserializar diretamente como TrainingExecution
-                try {
-                    val trainingExecution: TrainingExecution = response.body()
-                    return Result.Success(trainingExecution)
-                } catch (e2: Exception) {
-                    return Result.Error(Exception("Erro ao deserializar resposta: ${e2.message}"))
-                }
-            }
+            parseResponse(response, "Erro ao finalizar execução de treino")
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -158,33 +202,38 @@ class TrainingServiceImpl(
     
     override suspend fun getActiveTrainingExecution(): Result<TrainingExecution?> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/trainings/executions/active") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/trainings/executions/active")
+                        }
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/trainings/executions/active") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
             if (response.status.value == 404) {
-                // Não há execução ativa
-                return Result.Success(null)
+                 return Result.Success(null)
             }
-            
-            if (response.status.value >= 400) {
-                val errorBody = try {
-                    response.body<String>()
-                } catch (e: Exception) {
-                    null
-                }
-                return Result.Error(Exception("Erro ao buscar execução ativa: ${errorBody ?: "Erro do servidor"}"))
-            }
-            
-            val apiResponse: ApiResponse<TrainingExecution?> = response.body()
-            
-            if (apiResponse.success) {
-                Result.Success(apiResponse.data)
-            } else {
-                Result.Error(Exception(apiResponse.error ?: "Erro ao buscar execução ativa"))
-            }
+
+            parseResponse(response, "Erro ao buscar execução ativa")
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -192,38 +241,32 @@ class TrainingServiceImpl(
     
     override suspend fun getTrainingExecutionsByPlan(planId: String): Result<List<TrainingExecution>> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/trainings/executions/plan/$planId") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url("${EnvironmentConfig.API_BASE_URL}/trainings/executions/plan/$planId")
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/trainings/executions/plan/$planId") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
-            if (response.status.value >= 400) {
-                val errorBody = try {
-                    response.body<String>()
-                } catch (e: Exception) {
-                    null
-                }
-                return Result.Error(Exception("Erro ao buscar histórico de execuções: ${errorBody ?: "Erro do servidor"}"))
-            }
-            
-            // Tentar deserializar como ApiResponse primeiro
-            try {
-                val apiResponse: ApiResponse<List<TrainingExecution>> = response.body()
-                if (apiResponse.success && apiResponse.data != null) {
-                    return Result.Success(apiResponse.data)
-                } else {
-                    return Result.Error(Exception(apiResponse.error ?: "Erro ao buscar histórico de execuções"))
-                }
-            } catch (e: Exception) {
-                // Se falhar, tentar deserializar diretamente como List
-                try {
-                    val executions: List<TrainingExecution> = response.body()
-                    return Result.Success(executions)
-                } catch (e2: Exception) {
-                    return Result.Error(Exception("Erro ao deserializar resposta: ${e2.message}"))
-                }
-            }
+            parseResponse(response, "Erro ao buscar histórico de execuções")
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -231,38 +274,34 @@ class TrainingServiceImpl(
     
     override suspend fun getTrainingExecutionById(trainingId: String): Result<TrainingExecution> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId")
+                        }
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
-            if (response.status.value >= 400) {
-                val errorBody = try {
-                    response.body<String>()
-                } catch (e: Exception) {
-                    null
-                }
-                return Result.Error(Exception("Erro ao buscar execução de treino: ${errorBody ?: "Erro do servidor"}"))
-            }
-            
-            // Tentar deserializar como ApiResponse primeiro
-            try {
-                val apiResponse: ApiResponse<TrainingExecution> = response.body()
-                if (apiResponse.success && apiResponse.data != null) {
-                    return Result.Success(apiResponse.data)
-                } else {
-                    return Result.Error(Exception(apiResponse.error ?: "Erro ao buscar execução de treino"))
-                }
-            } catch (e: Exception) {
-                // Se falhar, tentar deserializar diretamente como TrainingExecution
-                try {
-                    val trainingExecution: TrainingExecution = response.body()
-                    return Result.Success(trainingExecution)
-                } catch (e2: Exception) {
-                    return Result.Error(Exception("Erro ao deserializar resposta: ${e2.message}"))
-                }
-            }
+            parseResponse(response, "Erro ao buscar execução de treino")
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             Result.Error(e)
         }

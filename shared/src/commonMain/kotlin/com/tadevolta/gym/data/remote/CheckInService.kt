@@ -1,6 +1,8 @@
 package com.tadevolta.gym.data.remote
 
 import com.tadevolta.gym.data.models.*
+import com.tadevolta.gym.data.repositories.AuthRepository
+import com.tadevolta.gym.utils.auth.UnauthenticatedException
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -17,7 +19,8 @@ interface CheckInService {
 
 class CheckInServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?
+    private val tokenProvider: () -> String?,
+    private val authRepository: AuthRepository? = null
 ) : CheckInService {
     
     override suspend fun checkIn(studentId: String, location: Location?): Result<CheckIn> {
@@ -31,12 +34,33 @@ class CheckInServiceImpl(
                 }
             }
             
-            val response = client.post("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/check-in") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                // Usar helper com retry automático
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/check-in")
+                        method = HttpMethod.Post
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                        contentType(ContentType.Application.Json)
+                        setBody(jsonBody)
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                // Fallback sem retry
+                client.post("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/check-in") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(jsonBody)
                 }
-                contentType(ContentType.Application.Json)
-                setBody(jsonBody)
             }
             
             // Tratar erro 404 separadamente
@@ -106,6 +130,9 @@ class CheckInServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao fazer check-in"))
             }
+        } catch (e: UnauthenticatedException) {
+            // Propagar exceção de autenticação
+            Result.Error(e)
         } catch (e: io.ktor.serialization.JsonConvertException) {
             // Erro de deserialização - pode ser formato inesperado da resposta
             Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
@@ -163,13 +190,37 @@ class CheckInServiceImpl(
         endDate: String?
     ): Result<CheckInHistory> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/check-ins") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                // Usar helper com retry automático
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/check-ins")
+                        }
+                        parameter("limit", limit)
+                        startDate?.let { parameter("startDate", it) }
+                        endDate?.let { parameter("endDate", it) }
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                // Fallback sem retry
+                client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/check-ins") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
+                    parameter("limit", limit)
+                    startDate?.let { parameter("startDate", it) }
+                    endDate?.let { parameter("endDate", it) }
                 }
-                parameter("limit", limit)
-                startDate?.let { parameter("startDate", it) }
-                endDate?.let { parameter("endDate", it) }
             }
             
             // Tratar erro 404 - aluno não encontrado ou sem check-ins
@@ -190,6 +241,9 @@ class CheckInServiceImpl(
             } else {
                 Result.Error(Exception(apiResponse.error ?: "Erro ao buscar histórico de check-in"))
             }
+        } catch (e: UnauthenticatedException) {
+            // Propagar exceção de autenticação
+            Result.Error(e)
         } catch (e: Exception) {
             // Se for erro de deserialização ou 404, retornar histórico vazio
             Result.Success(CheckInHistory(

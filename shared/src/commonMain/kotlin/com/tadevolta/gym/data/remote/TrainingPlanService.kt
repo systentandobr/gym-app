@@ -1,6 +1,8 @@
 package com.tadevolta.gym.data.remote
 
 import com.tadevolta.gym.data.models.*
+import com.tadevolta.gym.data.repositories.AuthRepository
+import com.tadevolta.gym.utils.auth.UnauthenticatedException
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -17,17 +19,39 @@ interface TrainingPlanService {
 
 class TrainingPlanServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?
+    private val tokenProvider: () -> String?,
+    private val authRepository: AuthRepository? = null
 ) : TrainingPlanService {
     
     override suspend fun getTrainingPlans(studentId: String?, status: String?): Result<List<TrainingPlan>> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/training-plans") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/training-plans")
+                        }
+                        studentId?.let { parameter("studentId", it) }
+                        status?.let { parameter("status", it) }
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/training-plans") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
+                    studentId?.let { parameter("studentId", it) }
+                    status?.let { parameter("status", it) }
                 }
-                studentId?.let { parameter("studentId", it) }
-                status?.let { parameter("status", it) }
             }
             
             // Tratar erros HTTP
@@ -43,6 +67,8 @@ class TrainingPlanServiceImpl(
             // A API retorna diretamente TrainingPlansResponse com data, total, page, limit
             val plansResponse: TrainingPlansResponse = response.body()
             Result.Success(plansResponse.data)
+        } catch (e: UnauthenticatedException) {
+            Result.Error(e)
         } catch (e: Exception) {
             // Em caso de erro de deserialização, retornar lista vazia ao invés de quebrar
             Result.Success(emptyList())
@@ -51,9 +77,28 @@ class TrainingPlanServiceImpl(
     
     override suspend fun getTrainingPlanById(id: String): Result<TrainingPlan> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/training-plans/$id") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
+            val response = if (authRepository != null) {
+                executeWithRetry(
+                    client = client,
+                    authRepository = authRepository,
+                    tokenProvider = tokenProvider,
+                    maxRetries = 3,
+                    requestBuilder = {
+                        url {
+                            takeFrom("${EnvironmentConfig.API_BASE_URL}/training-plans/$id")
+                        }
+                        method = HttpMethod.Get
+                        headers {
+                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                        }
+                    },
+                    responseHandler = { it }
+                )
+            } else {
+                client.get("${EnvironmentConfig.API_BASE_URL}/training-plans/$id") {
+                    headers {
+                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
+                    }
                 }
             }
             
@@ -119,6 +164,8 @@ class TrainingPlanServiceImpl(
             } catch (e: Exception) {
                 return Result.Error(Exception("Erro ao buscar plano de treino: ${e.message}"))
             }
+        } catch (e: UnauthenticatedException) {
+            return Result.Error(e)
         } catch (e: Exception) {
             return Result.Error(Exception("Erro ao buscar plano de treino: ${e.message}"))
         }
