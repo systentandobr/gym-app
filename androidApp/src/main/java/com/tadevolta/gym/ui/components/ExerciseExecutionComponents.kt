@@ -32,6 +32,16 @@ import androidx.compose.foundation.pager.PagerState
 import coil.compose.AsyncImage
 import com.tadevolta.gym.ui.theme.*
 import kotlinx.coroutines.delay
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.layout.ContentScale
+import android.widget.FrameLayout
+import android.view.View
 
 @Composable
 fun ExerciseExecutionHeader(
@@ -130,34 +140,95 @@ fun ExerciseExecutionHeader(
     }
 }
 
+@Composable
+fun VideoPlayer(
+    videoUrl: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val exoPlayer = remember(videoUrl) {
+        ExoPlayer.Builder(context).build().apply {
+            val mediaItem = MediaItem.fromUri(videoUrl)
+            setMediaItem(mediaItem)
+            repeatMode = Player.REPEAT_MODE_ONE
+            prepare()
+            playWhenReady = true
+        }
+    }
+
+    AndroidView(
+        factory = {
+            FrameLayout(context).apply {
+                // Prevenir o crash ACTION_HOVER_EXIT em dispositivos Samsung
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                
+                val playerView = PlayerView(context).apply {
+                    player = exoPlayer
+                    useController = false
+                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                }
+                addView(playerView)
+            }
+        },
+        update = { frameLayout ->
+            val playerView = frameLayout.getChildAt(0) as? PlayerView
+            if (playerView?.player != exoPlayer) {
+                playerView?.player = exoPlayer
+            }
+        },
+        modifier = modifier
+    )
+
+    DisposableEffect(exoPlayer) {
+        onDispose {
+            exoPlayer.release()
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ExerciseMediaCard(
+    videoUrl: String? = null,
     imageUrl: String?,
     images: List<String>? = null,
     focusMuscle: String
 ) {
-    // Construir lista de URLs de imagens (priorizar images se disponível)
-    val imageUrls = images?.mapNotNull { com.tadevolta.gym.utils.ImageUrlBuilder.buildImageUrl(it) }
-        ?: listOfNotNull(com.tadevolta.gym.utils.ImageUrlBuilder.buildImageUrl(imageUrl))
+    // 1. Otimizar URLs (recalcular apenas se os dados mudarem)
+    val mediaUrls = remember(videoUrl, imageUrl, images) {
+        val urls = mutableListOf<String>()
+        if (!videoUrl.isNullOrBlank()) {
+            urls.add(com.tadevolta.gym.utils.ImageUrlBuilder.buildImageUrl(videoUrl) ?: "")
+        }
+        val imgs = images?.mapNotNull { com.tadevolta.gym.utils.ImageUrlBuilder.buildImageUrl(it) }
+            ?: listOfNotNull(com.tadevolta.gym.utils.ImageUrlBuilder.buildImageUrl(imageUrl))
+        urls.addAll(imgs)
+        urls
+    }
     
-    val pageCount = imageUrls.size.coerceAtLeast(1)
+    val hasVideo = remember(videoUrl) { !videoUrl.isNullOrBlank() }
+    val totalItems = mediaUrls.size
+    val pageCount = totalItems.coerceAtLeast(1)
+    
     val pagerState = rememberPagerState(
         initialPage = 0,
         pageCount = { pageCount }
     )
     
-    // Auto-play: mudar de página a cada 7 segundos
-    LaunchedEffect(pagerState.currentPage, imageUrls.size) {
-        if (imageUrls.size > 1) {
-            while (true) {
-                delay(7000) // 7 segundos
-                val nextPage = (pagerState.currentPage + 1) % imageUrls.size
-                pagerState.scrollToPage(nextPage)
+    // 2. Lógica de auto-play resiliente
+    LaunchedEffect(pagerState.settledPage, totalItems, hasVideo) {
+        if (totalItems > 1) {
+            val delayTime = if (hasVideo && pagerState.settledPage == 0) 9000L else 7000L
+            delay(delayTime)
+            
+            if (!pagerState.isScrollInProgress) {
+                val nextPage = (pagerState.settledPage + 1) % totalItems
+                pagerState.animateScrollToPage(nextPage)
             }
         }
     }
     
+    // 3. Container estável para evitar crashes de pointer event
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -166,54 +237,54 @@ fun ExerciseMediaCard(
             .clip(RoundedCornerShape(16.dp))
             .background(CardDark)
     ) {
-        // Mostrar imagem do exercício se disponível
-        if (imageUrls.isNotEmpty()) {
-            if (imageUrls.size > 1) {
-                // Carrossel com múltiplas imagens
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize()
-                ) { page ->
+        if (totalItems > 0) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                // Importante: manter o vídeo carregado quando estiver quase fora da tela 
+                // para evitar remoção brusca da View nativa durante swipe
+                beyondBoundsPageCount = 1,
+                // Chave única para ajudar o Compose a rastrear itens (estabilidade)
+                key = { page -> if (hasVideo && page == 0) "video" else "img_${mediaUrls[page]}" }
+            ) { page ->
+                if (hasVideo && page == 0) {
+                    VideoPlayer(
+                        videoUrl = mediaUrls[0],
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
                     AsyncImage(
-                        model = imageUrls[page],
-                        contentDescription = "Exercício - Imagem ${page + 1}",
+                        model = mediaUrls[page],
+                        contentDescription = "Exercício - Mídia ${page + 1}",
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        contentScale = ContentScale.Fit
                     )
                 }
-                
-                // Indicadores de página (dots)
-                if (imageUrls.size > 1) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 50.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        repeat(imageUrls.size) { index ->
-                            val isSelected = pagerState.currentPage == index
-                            Box(
-                                modifier = Modifier
-                                    .size(if (isSelected) 8.dp else 6.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f)
-                                    )
-                            )
-                        }
+            }
+            
+            // Indicadores (dots)
+            if (totalItems > 1) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 50.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    repeat(totalItems) { index ->
+                        val isSelected = pagerState.currentPage == index
+                        Box(
+                            modifier = Modifier
+                                .size(if (isSelected) 8.dp else 6.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f)
+                                )
+                        )
                     }
                 }
-            } else {
-                // Apenas uma imagem
-                AsyncImage(
-                    model = imageUrls.first(),
-                    contentDescription = "Exercício",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
             }
         } else {
-            // Fallback: ícone quando não há imagem
+            // Fallback: ícone
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center

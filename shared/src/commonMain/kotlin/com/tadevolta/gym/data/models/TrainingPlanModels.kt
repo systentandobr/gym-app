@@ -112,6 +112,7 @@ data class CatalogExercise(
     val difficulty: ExerciseDifficulty? = null,
     val targetGender: String? = null, // "male", "female", "other"
     val images: List<String>? = null,
+    val videoUrl: String? = null,
     val isActive: Boolean = true,
     val createdAt: String? = null,
     val updatedAt: String? = null
@@ -130,7 +131,7 @@ data class CatalogExercise(
             notes = description,
             imageUrl = images?.firstOrNull(),
             images = images,
-            videoUrl = null,
+            videoUrl = videoUrl,
             description = description,
             muscleGroups = muscleGroups,
             equipment = equipment,

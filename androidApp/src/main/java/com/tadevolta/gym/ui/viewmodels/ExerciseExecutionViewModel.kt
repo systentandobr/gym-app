@@ -483,7 +483,8 @@ class ExerciseExecutionViewModel @Inject constructor(
                     // Construir URLs completas das imagens
                     val exerciseWithFullUrls = exercise.copy(
                         images = exercise.images?.let { ImageUrlBuilder.buildImageUrls(it) },
-                        imageUrl = ImageUrlBuilder.buildImageUrl(exercise.imageUrl)
+                        imageUrl = ImageUrlBuilder.buildImageUrl(exercise.imageUrl),
+                        videoUrl = ImageUrlBuilder.buildImageUrl(exercise.videoUrl)
                     )
                     
                     _exerciseDetails.value = exerciseWithFullUrls
@@ -531,7 +532,8 @@ class ExerciseExecutionViewModel @Inject constructor(
                     // Construir URLs completas das imagens
                     val exerciseWithFullUrls = exercise.copy(
                         images = exercise.images?.let { ImageUrlBuilder.buildImageUrls(it) },
-                        imageUrl = ImageUrlBuilder.buildImageUrl(exercise.imageUrl)
+                        imageUrl = ImageUrlBuilder.buildImageUrl(exercise.imageUrl),
+                        videoUrl = ImageUrlBuilder.buildImageUrl(exercise.videoUrl)
                     )
                     
                     _exerciseDetails.value = exerciseWithFullUrls

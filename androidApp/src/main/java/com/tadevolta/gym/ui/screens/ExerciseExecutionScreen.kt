@@ -201,6 +201,7 @@ fun ExerciseExecutionScreen(
                 // Mídia do exercício
                 item {
                     ExerciseMediaCard(
+                        videoUrl = exercise.videoUrl,
                         imageUrl = exercise.imageUrl,
                         images = exercise.images,
                         focusMuscle = exercise.name
