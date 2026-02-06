@@ -84,7 +84,7 @@ fun RankingScreen(
             // Card de desempenho do usuário
             item {
                 UserPerformanceCard(
-                    daysCompleted = checkInStats?.checkInsLast365Days ?: 10,
+                    daysCompleted = checkInStats?.checkInsLast365Days ?: 0,
                     totalDays = 365,
                     globalPosition = userData?.ranking?.position,
                     onShareClick = { viewModel.shareProgress() }

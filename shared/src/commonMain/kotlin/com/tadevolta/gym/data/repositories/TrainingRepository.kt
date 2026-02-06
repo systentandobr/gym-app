@@ -47,7 +47,9 @@ class TrainingRepository(
                 planned_weight = set.plannedWeight,
                 executed_weight = set.executedWeight,
                 completed = if (set.completed) 1L else 0L,
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis(),
+                duration_seconds = set.durationSeconds?.toLong(),
+                rest_duration_seconds = set.restDurationSeconds?.toLong()
             )
         }
         

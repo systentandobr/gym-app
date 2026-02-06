@@ -474,5 +474,104 @@ fun ExerciseExecutionScreen(
                 }
             )
         }
+        
+        // Modal de conclusão de treino (apenas para treinos recomendados)
+        if (uiState.showCompletionModal) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissCompletionModal() },
+                containerColor = CardDark,
+                shape = RoundedCornerShape(24.dp),
+                icon = {
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(PurplePrimary.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.EmojiEvents,
+                            contentDescription = null,
+                            tint = PurplePrimary,
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
+                },
+                title = {
+                    Text(
+                        text = "Parabéns!",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                },
+                text = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Você completou seu treino recomendado de hoje.",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                color = MutedForegroundDark
+                            ),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = totalTime,
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                Text(
+                                    text = "Duração",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = MutedForegroundDark
+                                    )
+                                )
+                            }
+                            Divider(
+                                modifier = Modifier
+                                    .height(32.dp)
+                                    .width(1.dp),
+                                color = BorderDark
+                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "+50 XP",
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        color = PurplePrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                Text(
+                                    text = "Ganhos",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = MutedForegroundDark
+                                    )
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    GradientButton(
+                        text = "Finalizar",
+                        onClick = {
+                            viewModel.dismissCompletionModal()
+                            onClose()
+                        }
+                    )
+                }
+            )
+        }
     }
 }

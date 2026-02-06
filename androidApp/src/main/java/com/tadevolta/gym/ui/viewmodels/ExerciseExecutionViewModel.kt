@@ -35,7 +35,11 @@ data class ExerciseExecutionUiState(
     val error: String? = null,
     val isExecutionRunning: Boolean = false,
     val totalExecutionTimeSeconds: Long = 0,
-    val restTimeRemaining: Int? = null
+    val restTimeRemaining: Int? = null,
+    val setStartTime: Long? = null,
+    val restStartTime: Long? = null,
+    val isRecommendedWorkout: Boolean = false,
+    val showCompletionModal: Boolean = false
 )
 
 @HiltViewModel
@@ -203,6 +207,11 @@ class ExerciseExecutionViewModel @Inject constructor(
                         emptyList()
                     }
                     
+                    // Verificar se o plano é recomendado (baseado na tag RECOMENDADO ou isTemplate)
+                    // No frontend Android, geralmente planos recomendados são os que vêm da lista principal
+                    // Por enquanto, vamos assumir que se o plano tem objetivos ou é da unidade, pode ser recomendado
+                    val isRecommended = plan.isTemplate || plan.name.contains("Recomendado", ignoreCase = true)
+
                     _uiState.value = _uiState.value.copy(
                         workoutTitle = "Treino Ativo",
                         workoutSubtitle = workoutSubtitle,
@@ -213,7 +222,8 @@ class ExerciseExecutionViewModel @Inject constructor(
                         nextExercises = nextExercises,
                         totalExercises = exercises.size,
                         isLoading = false,
-                        error = null
+                        error = null,
+                        isRecommendedWorkout = isRecommended
                     )
                 }
                 is Result.Error -> {
@@ -269,11 +279,27 @@ class ExerciseExecutionViewModel @Inject constructor(
     }
     
     fun completeSet(set: ExecutedSet) {
+        val now = System.currentTimeMillis()
+        val startTime = _uiState.value.setStartTime ?: now
+        val duration = ((now - startTime) / 1000).toInt()
+
         val updatedSets = _uiState.value.executedSets.toMutableList()
         val index = updatedSets.indexOfFirst { it.setNumber == set.setNumber }
         if (index >= 0) {
-            updatedSets[index] = set.copy(completed = true)
-            _uiState.value = _uiState.value.copy(executedSets = updatedSets)
+            updatedSets[index] = updatedSets[index].copy(
+                completed = true,
+                durationSeconds = duration,
+                timestamp = now.toString(),
+                executedWeight = set.executedWeight,
+                executedReps = set.executedReps
+            )
+            _uiState.value = _uiState.value.copy(
+                executedSets = updatedSets,
+                restStartTime = now
+            )
+            
+            // Iniciar descanso automaticamente
+            startRestTimer()
         }
     }
     
@@ -290,7 +316,7 @@ class ExerciseExecutionViewModel @Inject constructor(
         val updatedSets = _uiState.value.executedSets.toMutableList()
         val index = updatedSets.indexOfFirst { it.setNumber == set.setNumber }
         if (index >= 0) {
-            updatedSets[index] = set.copy(executedReps = reps)
+            updatedSets[index] = updatedSets[index].copy(executedReps = reps)
             _uiState.value = _uiState.value.copy(executedSets = updatedSets)
         }
     }
@@ -346,6 +372,11 @@ class ExerciseExecutionViewModel @Inject constructor(
                             trainingId = trainingId,
                             totalDurationSeconds = _uiState.value.totalExecutionTimeSeconds.toInt()
                         )
+                        
+                        // Mostrar modal de conclusão se for treino recomendado
+                        if (_uiState.value.isRecommendedWorkout) {
+                            _uiState.value = _uiState.value.copy(showCompletionModal = true)
+                        }
                     }
                 }
                 is Result.Error -> {
@@ -360,6 +391,10 @@ class ExerciseExecutionViewModel @Inject constructor(
         }
     }
     
+    fun dismissCompletionModal() {
+        _uiState.value = _uiState.value.copy(showCompletionModal = false)
+    }
+    
     private fun checkAllExercisesCompleted(trainingExecution: TrainingExecution): Boolean {
         // Buscar o plano para saber quantos exercícios são esperados
         // Por enquanto, assumir que se todos os exercícios na TrainingExecution têm executedSets completos, está completo
@@ -371,9 +406,40 @@ class ExerciseExecutionViewModel @Inject constructor(
     }
     
     fun startExecutionTimer() {
-        if (_uiState.value.isExecutionRunning) return
+        val now = System.currentTimeMillis()
         
-        _uiState.value = _uiState.value.copy(isExecutionRunning = true)
+        // Calcular descanso se estava parado (vindo de uma série anterior)
+        val restStartTime = _uiState.value.restStartTime
+        var restDuration: Int? = null
+        if (restStartTime != null) {
+            restDuration = ((now - restStartTime) / 1000).toInt()
+        }
+
+        // Atualizar o set anterior com o tempo de descanso
+        if (restDuration != null) {
+            val updatedSets = _uiState.value.executedSets.toMutableList()
+            // Encontrar o último set completado para adicionar o tempo de descanso correspondente
+            val lastCompletedIndex = updatedSets.indexOfLast { it.completed }
+            if (lastCompletedIndex >= 0) {
+                updatedSets[lastCompletedIndex] = updatedSets[lastCompletedIndex].copy(
+                    restDurationSeconds = restDuration
+                )
+            }
+            _uiState.value = _uiState.value.copy(
+                executedSets = updatedSets,
+                restStartTime = null
+            )
+        }
+
+        _uiState.value = _uiState.value.copy(
+            isExecutionRunning = true,
+            setStartTime = now,
+            restTimeRemaining = null
+        )
+        
+        restTimerJob?.cancel() // Cancelar timer de descanso se estiver rodando
+        
+        if (executionTimerJob?.isActive == true) return
         
         executionTimerJob = viewModelScope.launch {
             while (_uiState.value.isExecutionRunning) {

@@ -3,6 +3,8 @@ package com.tadevolta.gym.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -156,7 +158,43 @@ private fun TrainingPlansList(
     onExerciseClick: (Exercise) -> Unit,
     onDayClick: (String, Int) -> Unit
 ) {
+    val listState = rememberLazyListState()
+    val currentDay = getCurrentDayOfWeek()
+    
+    // Find index of first recommended workout for scrolling
+    LaunchedEffect(plans) {
+        if (plans.isNotEmpty()) {
+            var itemIndex = 2 // Start after header (0) and gamification card (1)
+            var foundRecommended = false
+            
+            for (plan in plans) {
+                for (daySchedule in plan.weeklySchedule) {
+                    if (daySchedule.exercises.isNotEmpty()) {
+                        val isToday = daySchedule.dayOfWeek == currentDay
+                        val isRecommended = isToday && plan.status == TrainingPlanStatus.ACTIVE
+                        
+                        if (isRecommended) {
+                            foundRecommended = true
+                            break
+                        }
+                        itemIndex++
+                    }
+                }
+                if (foundRecommended) break
+            }
+            
+            // Scroll to recommended item with offset to center it
+            if (foundRecommended) {
+                listState.animateScrollToItem(
+                    index = itemIndex,
+                    scrollOffset = -200 // Negative offset to center the item
+                )
+            }
+        }
+    }
+    
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -215,8 +253,6 @@ private fun TrainingPlansList(
                 )
             }
         } else {
-            val currentDay = getCurrentDayOfWeek()
-            
             plans.forEach { plan ->
                 // Renderizar um card para cada dia da semana que tenha exercícios
                 plan.weeklySchedule.forEach { daySchedule ->

@@ -93,9 +93,15 @@ fun DashboardScreen(
             
             // Progresso Anual
             item {
+                val currentDays = uiState.checkInStats?.checkInsLast365Days ?: 0
+                val percentage = if (currentDays > 0) {
+                    (currentDays * 100 / 365).coerceAtMost(100)
+                } else {
+                    0
+                }
                 AnnualProgressCard(
-                    currentDays = uiState.checkInStats?.checkInsLast365Days ?: 0,
-                    percentage = 3
+                    currentDays = currentDays,
+                    percentage = percentage
                 )
             }
             
@@ -128,7 +134,7 @@ fun DashboardScreen(
                     )
                     StatsCard(
                         title = "Check-ins",
-                        value = "${uiState.checkInStats?.checkInsLast365Days ?: 10}",
+                        value = "${uiState.checkInStats?.checkInsLast365Days ?: 0}",
                         icon = {
                             Icon(
                                 Icons.Default.CheckCircle,

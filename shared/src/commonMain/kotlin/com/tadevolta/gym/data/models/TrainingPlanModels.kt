@@ -77,7 +77,9 @@ data class ExecutedSet(
     val plannedWeight: Double? = null,
     val executedWeight: Double? = null,
     val completed: Boolean = false,
-    val timestamp: String? = null
+    val timestamp: String? = null,
+    val durationSeconds: Int? = null,
+    val restDurationSeconds: Int? = null
 )
 
 @Serializable(with = TrainingPlanStatusSerializer::class)

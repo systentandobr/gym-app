@@ -152,16 +152,28 @@ class CheckInServiceImpl(
                     Result.Success(CheckInStats.fromHistory(history, checkInsLast365Days))
                 }
                 is Result.Error -> {
-                    // Se houver erro, retornar stats vazios ao invés de quebrar
-                    Result.Success(CheckInStats(
-                        totalCheckIns = 0,
-                        currentStreak = 0,
-                        longestStreak = 0,
-                        checkInsThisYear = 0,
-                        checkInsLast365Days = 0
-                    ))
+                    // Distinguish between "no data" (404) and actual errors
+                    val errorMsg = historyResult.exception.message ?: ""
+                    val isNoDataError = errorMsg.contains("404") || 
+                                       errorMsg.contains("não encontrado") ||
+                                       errorMsg.contains("not found", ignoreCase = true)
+                    
+                    if (isNoDataError) {
+                        // Return empty stats for "no data" scenario - this is normal for new users
+                        Result.Success(CheckInStats(
+                            totalCheckIns = 0,
+                            currentStreak = 0,
+                            longestStreak = 0,
+                            checkInsThisYear = 0,
+                            checkInsLast365Days = 0
+                        ))
+                    } else {
+                        // Propagate actual errors (network, auth, etc.)
+                        Result.Error(historyResult.exception)
+                    }
                 }
                 else -> {
+                    // Loading state - return empty stats
                     Result.Success(CheckInStats(
                         totalCheckIns = 0,
                         currentStreak = 0,
@@ -172,14 +184,26 @@ class CheckInServiceImpl(
                 }
             }
         } catch (e: Exception) {
-            // Em caso de erro, retornar stats vazios ao invés de quebrar
-            Result.Success(CheckInStats(
-                totalCheckIns = 0,
-                currentStreak = 0,
-                longestStreak = 0,
-                checkInsThisYear = 0,
-                checkInsLast365Days = 0
-            ))
+            // Check if this is a "no data" scenario vs actual error
+            val errorMsg = e.message ?: ""
+            val isNoDataError = errorMsg.contains("404") || 
+                               errorMsg.contains("não encontrado") ||
+                               errorMsg.contains("not found", ignoreCase = true) ||
+                               errorMsg.contains("vazio", ignoreCase = true)
+            
+            if (isNoDataError) {
+                // Return empty stats for "no data" scenario
+                Result.Success(CheckInStats(
+                    totalCheckIns = 0,
+                    currentStreak = 0,
+                    longestStreak = 0,
+                    checkInsThisYear = 0,
+                    checkInsLast365Days = 0
+                ))
+            } else {
+                // Propagate actual errors
+                Result.Error(e)
+            }
         }
     }
     

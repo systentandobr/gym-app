@@ -22,6 +22,8 @@ CREATE TABLE exercise_execution (
     executed_weight REAL,
     completed INTEGER NOT NULL,
     timestamp INTEGER NOT NULL,
+    duration_seconds INTEGER,
+    rest_duration_seconds INTEGER,
     FOREIGN KEY(training_execution_id) REFERENCES training_execution(id)
 );
 
@@ -45,5 +47,5 @@ selectExerciseExecutions:
 SELECT * FROM exercise_execution WHERE training_execution_id = ? AND exercise_id = ? ORDER BY set_number;
 
 insertExerciseExecution:
-INSERT OR REPLACE INTO exercise_execution (id, training_execution_id, exercise_id, set_number, planned_reps, executed_reps, planned_weight, executed_weight, completed, timestamp)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO exercise_execution (id, training_execution_id, exercise_id, set_number, planned_reps, executed_reps, planned_weight, executed_weight, completed, timestamp, duration_seconds, rest_duration_seconds)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
