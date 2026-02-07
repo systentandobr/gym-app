@@ -27,6 +27,7 @@ import com.tadevolta.gym.ui.theme.CardDark
 import com.tadevolta.gym.ui.theme.MutedForegroundDark
 import com.tadevolta.gym.ui.theme.PurplePrimary
 import com.tadevolta.gym.ui.viewmodels.TrainingPlanViewModel
+import com.tadevolta.gym.ui.viewmodels.DashboardViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,10 +35,13 @@ fun TrainingScreen(
     planId: String,
     dayOfWeek: Int? = null,
     viewModel: TrainingPlanViewModel = hiltViewModel(),
+    dashboardViewModel: DashboardViewModel = hiltViewModel(),
     onBackClick: () -> Unit = {},
     onExerciseClick: (Exercise) -> Unit = {}
 ) {
     val planResult by viewModel.trainingPlan.collectAsState()
+    val activeExecResult by viewModel.activeExecution.collectAsState()
+    val dashboardState by dashboardViewModel.uiState.collectAsState()
     
     LaunchedEffect(planId) {
         viewModel.loadPlan(planId)
@@ -116,7 +120,9 @@ fun TrainingScreen(
                     TrainingExercisesList(
                         plan = state.data,
                         dayOfWeek = dayOfWeek,
-                        onExerciseClick = onExerciseClick
+                        activeExecution = (activeExecResult as? Result.Success)?.data,
+                        onExerciseClick = onExerciseClick,
+                        dashboardState = dashboardState
                     )
                 }
                 is Result.Error -> {
@@ -135,6 +141,8 @@ fun TrainingScreen(
 private fun TrainingExercisesList(
     plan: TrainingPlan,
     dayOfWeek: Int? = null,
+    activeExecution: TrainingExecution? = null,
+    dashboardState: com.tadevolta.gym.ui.viewmodels.DashboardUiState,
     onExerciseClick: (Exercise) -> Unit
 ) {
     val listState = rememberLazyListState()
@@ -142,9 +150,7 @@ private fun TrainingExercisesList(
     val exercisesToShow = if (dayOfWeek != null) {
         plan.weeklySchedule.find { it.dayOfWeek == dayOfWeek }?.exercises ?: emptyList()
     } else {
-        plan.exercises.ifEmpty {
-            plan.weeklySchedule.flatMap { it.exercises }
-        }
+        plan.exercises
     }
 
     LazyColumn(
@@ -156,8 +162,8 @@ private fun TrainingExercisesList(
         // Gamification Card
         item {
             ProgressGamificationCard(
-                currentStreak = 0,
-                checkInsThisMonth = 0,
+                currentStreak = dashboardState.checkInStats?.currentStreak ?: 0,
+                checkInsThisMonth = dashboardState.checkInStats?.checkInsThisYear ?: 0,
                 totalCheckIns = 365
             )
         }
@@ -173,6 +179,12 @@ private fun TrainingExercisesList(
             }
         } else {
             exercisesToShow.forEach { exercise ->
+                val exerciseExec = activeExecution?.exercises?.find { 
+                    it.exerciseId == exercise.exerciseId || it.name == exercise.name 
+                }
+                val isCompleted = exerciseExec?.executedSets?.all { it.completed } == true && 
+                                 exerciseExec.executedSets.size >= exercise.sets
+                
                 item {
                     WorkoutCard(
                         title = exercise.name,
@@ -181,6 +193,7 @@ private fun TrainingExercisesList(
                         restTime = "${exercise.restTime ?: 60}s Descanso",
                         imageUrl = exercise.primaryImageUrl,
                         notes = exercise.notes,
+                        isCompleted = isCompleted,
                         onClick = { onExerciseClick(exercise) }
                     )
                 }

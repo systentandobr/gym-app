@@ -21,6 +21,7 @@ import com.tadevolta.gym.data.models.*
 import com.tadevolta.gym.ui.components.*
 import com.tadevolta.gym.ui.theme.*
 import com.tadevolta.gym.ui.viewmodels.TrainingPlanViewModel
+import com.tadevolta.gym.ui.viewmodels.DashboardViewModel
 
 // Helpers moved to TrainingUIHelpers.kt
 
@@ -28,9 +29,11 @@ import com.tadevolta.gym.ui.viewmodels.TrainingPlanViewModel
 fun TrainingPlanScreen(
     studentId: String,
     viewModel: TrainingPlanViewModel = hiltViewModel(),
+    dashboardViewModel: DashboardViewModel = hiltViewModel(),
     onDayClick: (String, Int) -> Unit
 ) {
     val plansState by viewModel.trainingPlans.collectAsState()
+    val dashboardState by dashboardViewModel.uiState.collectAsState()
     
     LaunchedEffect(studentId) {
         viewModel.loadPlansByStudentId(studentId)
@@ -53,7 +56,8 @@ fun TrainingPlanScreen(
             is Result.Success -> {
                 TrainingPlansList(
                     plans = state.data,
-                    onDayClick = onDayClick
+                    onDayClick = onDayClick,
+                    dashboardState = dashboardState
                 )
             }
             is Result.Error -> {
@@ -76,7 +80,8 @@ fun TrainingPlanScreen(
 @Composable
 private fun TrainingPlansList(
     plans: List<TrainingPlan>,
-    onDayClick: (String, Int) -> Unit
+    onDayClick: (String, Int) -> Unit,
+    dashboardState: com.tadevolta.gym.ui.viewmodels.DashboardUiState
 ) {
     val listState = rememberLazyListState()
     val currentDay = getCurrentDayOfWeek()
@@ -162,30 +167,15 @@ Row(verticalAlignment = Alignment.CenterVertically) {
             }
         }
 
-        // Search Bar Placeholder
+        // Substituir por Card do time se estiver em algum time e navegar pelo ranking do time
         item {
-            OutlinedTextField(
-                value = "",
-                onValueChange = {},
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                placeholder = { 
-                    Text("Buscar plano...", color = MutedForegroundDark) 
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = MutedForegroundDark)
-                },
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = CardDark.copy(alpha = 0.5f),
-                    focusedContainerColor = CardDark.copy(alpha = 0.5f),
-                    unfocusedBorderColor = Color.Transparent,
-                    focusedBorderColor = PurplePrimary
-                ),
-                singleLine = true
+            ProgressGamificationCard(
+                currentStreak = dashboardState.checkInStats?.currentStreak ?: 0,
+                checkInsThisMonth = dashboardState.checkInStats?.checkInsThisYear ?: 0,
+                totalCheckIns = 365
             )
         }
+
         
         // Lista de treinos
         if (plans.isEmpty()) {

@@ -53,7 +53,8 @@ class ExerciseExecutionViewModel @Inject constructor(
     
     private val planId: String = savedStateHandle.get<String>("planId") ?: ""
     private val exerciseId: String = savedStateHandle.get<String>("exerciseId") ?: ""
-    private val dayOfWeek: Int? = savedStateHandle.get<Int>("dayOfWeek")
+    private val dayOfWeekRaw: Int? = savedStateHandle.get<Int>("dayOfWeek")
+    private val dayOfWeek: Int? = if (dayOfWeekRaw == null || dayOfWeekRaw == -1) null else dayOfWeekRaw
     
     private var currentTrainingExecutionId: String? = null
     
@@ -138,15 +139,10 @@ class ExerciseExecutionViewModel @Inject constructor(
                 is Result.Success -> {
                     val plan = result.data
                     
-                    // Buscar exercícios de weeklySchedule se dayOfWeek foi fornecido
                     val exercises = if (dayOfWeek != null) {
-                        plan.weeklySchedule.find { it.dayOfWeek == dayOfWeek }?.exercises 
-                            ?: emptyList()
+                        plan.weeklySchedule.find { it.dayOfWeek == dayOfWeek }?.exercises ?: emptyList()
                     } else {
-                        // Fallback: usar plan.exercises se weeklySchedule estiver vazio
-                        plan.exercises.ifEmpty {
-                            plan.weeklySchedule.flatMap { it.exercises }
-                        }
+                        plan.exercises
                     }
                     
                     val exercise = exercises.find { 

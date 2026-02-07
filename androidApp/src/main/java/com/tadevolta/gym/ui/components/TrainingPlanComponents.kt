@@ -341,6 +341,7 @@ fun WorkoutCard(
     imageUrl: String? = null,
     notes: String? = null,
     isRecommended: Boolean = false,
+    isCompleted: Boolean = false,
     onClick: () -> Unit
 ) {
     Card(
