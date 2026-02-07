@@ -3,6 +3,7 @@ package com.tadevolta.gym.di
 import android.content.Context
 import com.tadevolta.gym.data.local.DatabaseDriverFactory
 import com.tadevolta.gym.data.local.TadevoltaDatabase
+import com.tadevolta.gym.data.manager.TokenManager
 import com.tadevolta.gym.data.remote.*
 import com.tadevolta.gym.data.repositories.*
 import com.tadevolta.gym.data.repositories.AuthRepository
@@ -45,6 +46,16 @@ object AppModule {
     ): UserSessionStorage {
         return SecureUserSessionStorage(context)
     }
+
+    @Provides
+    @Singleton
+    fun provideTokenManager(
+        tokenStorage: SecureTokenStorage
+    ): TokenManager {
+        // TokenManager NÃO depende de AuthRepository para evitar dependência circular
+        // O refresh é feito pelo executeWithRetry no HttpRequestHelper
+        return TokenManager(tokenStorage)
+    }
     
     @Provides
     @Singleton
@@ -76,17 +87,18 @@ object AppModule {
     fun provideUserService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage,
-        authRepository: Lazy<AuthRepository>
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): UserService {
-        // Não injetar AuthRepository aqui para evitar dependência circular
-        // O UserServiceImpl aceita authRepository como opcional
-        // O retry será feito através do AuthRepository quando necessário
+        // UserService é usado pelo AuthRepository, então não injetamos authRepository aqui
+        // Mas injetamos tokenManager para ter prevenção pró-ativa de expiração
         return UserServiceImpl(
             client = client,
             tokenProvider = { 
-                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
             },
-            authRepository = null // UserService não precisa de retry pois é usado pelo AuthRepository
+            authRepository = null, // Sem retry para evitar dependência circular
+            tokenManager = tokenManager // Mas com prevenção pró-ativa de expiração
         )
     }
     
@@ -95,14 +107,16 @@ object AppModule {
     fun provideTrainingPlanService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage,
-        authRepository: Lazy<AuthRepository>
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): TrainingPlanService {
         return TrainingPlanServiceImpl(
             client = client,
             tokenProvider = { 
-                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
             },
-            authRepository = authRepository.get()
+            authRepository = authRepository.get(),
+            tokenManager = tokenManager
         )
     }
     
@@ -111,14 +125,16 @@ object AppModule {
     fun provideTrainingService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage,
-        authRepository: Lazy<AuthRepository>
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): TrainingService {
         return TrainingServiceImpl(
             client = client,
             tokenProvider = { 
-                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
             },
-            authRepository = authRepository.get()
+            authRepository = authRepository.get(),
+            tokenManager = tokenManager
         )
     }
     
@@ -127,14 +143,16 @@ object AppModule {
     fun provideSubscriptionService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage,
-        authRepository: Lazy<AuthRepository>
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): SubscriptionService {
         return SubscriptionServiceImpl(
             client = client,
             tokenProvider = { 
-                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
             },
-            authRepository = authRepository.get()
+            authRepository = authRepository.get(),
+            tokenManager = tokenManager
         )
     }
     
@@ -143,14 +161,16 @@ object AppModule {
     fun provideCheckInService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage,
-        authRepository: Lazy<AuthRepository>
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): CheckInService {
         return CheckInServiceImpl(
             client = client,
             tokenProvider = { 
-                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
             },
-            authRepository = authRepository.get()
+            authRepository = authRepository.get(),
+            tokenManager = tokenManager
         )
     }
     
@@ -159,14 +179,16 @@ object AppModule {
     fun provideGamificationService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage,
-        authRepository: Lazy<AuthRepository>
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): GamificationService {
         return GamificationServiceImpl(
             client = client,
             tokenProvider = { 
-                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
             },
-            authRepository = authRepository.get()
+            authRepository = authRepository.get(),
+            tokenManager = tokenManager
         )
     }
     
@@ -175,14 +197,16 @@ object AppModule {
     fun provideTeamService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage,
-        authRepository: Lazy<AuthRepository>
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): TeamService {
         return TeamServiceImpl(
             client = client,
             tokenProvider = { 
-                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
             },
-            authRepository = authRepository.get()
+            authRepository = authRepository.get(),
+            tokenManager = tokenManager
         )
     }
     
@@ -191,14 +215,16 @@ object AppModule {
     fun provideExerciseService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage,
-        authRepository: Lazy<AuthRepository>
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): ExerciseService {
         return ExerciseServiceImpl(
             client = client,
             tokenProvider = { 
-                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
             },
-            authRepository = authRepository.get()
+            authRepository = authRepository.get(),
+            tokenManager = tokenManager
         )
     }
     
@@ -206,23 +232,37 @@ object AppModule {
     @Singleton
     fun provideBioimpedanceService(
         client: HttpClient,
-        tokenStorage: SecureTokenStorage
+        tokenStorage: SecureTokenStorage,
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): BioimpedanceService {
-        return BioimpedanceServiceImpl(client) { 
-            kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
-        }
+        return BioimpedanceServiceImpl(
+            client = client,
+            tokenProvider = { 
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
+            },
+            authRepository = authRepository.get(),
+            tokenManager = tokenManager
+        )
     }
     
     @Provides
     @Singleton
     fun provideFranchiseService(
         client: HttpClient,
-        tokenStorage: SecureTokenStorage
+        tokenStorage: SecureTokenStorage,
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): FranchiseService {
         // Token opcional - endpoint pode funcionar sem autenticação no onboarding
-        return FranchiseServiceImpl(client) { 
-            kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
-        }
+        return FranchiseServiceImpl(
+            client = client,
+            tokenProvider = { 
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
+            },
+            authRepository = authRepository.get(),
+            tokenManager = tokenManager
+        )
     }
     
     @Provides
@@ -285,14 +325,16 @@ object AppModule {
     fun provideReferralService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage,
-        authRepository: Lazy<AuthRepository>
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): ReferralService {
         return ReferralServiceImpl(
             client = client,
             tokenProvider = { 
-                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
             },
-            authRepository = authRepository.get()
+            authRepository = authRepository.get(),
+            tokenManager = tokenManager
         )
     }
     
@@ -301,14 +343,16 @@ object AppModule {
     fun provideStudentService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage,
-        authRepository: Lazy<AuthRepository>
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): StudentService {
         return StudentServiceImpl(
             client = client,
             tokenProvider = { 
-                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
             },
-            authRepository = authRepository.get()
+            authRepository = authRepository.get(),
+            tokenManager = tokenManager
         )
     }
     
@@ -317,14 +361,16 @@ object AppModule {
     fun provideUnitOccupancyService(
         client: HttpClient,
         tokenStorage: SecureTokenStorage,
-        authRepository: Lazy<AuthRepository>
+        authRepository: Lazy<AuthRepository>,
+        tokenManager: TokenManager
     ): UnitOccupancyService {
         return UnitOccupancyServiceImpl(
             client = client,
             tokenProvider = { 
-                kotlinx.coroutines.runBlocking { tokenStorage.getAccessToken() }
+                kotlinx.coroutines.runBlocking { tokenManager.getAccessToken() }
             },
-            authRepository = authRepository.get()
+            authRepository = authRepository.get(),
+            tokenManager = tokenManager
         )
     }
 }

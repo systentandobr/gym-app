@@ -28,13 +28,74 @@ actual class SecureUserSessionStorage(
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
     
-    private val sharedPreferences: SharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        "user_session",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    private val sharedPreferences: SharedPreferences = createEncryptedSharedPreferences()
+    
+    /**
+     * Cria o EncryptedSharedPreferences com tratamento de erro para corrupção de dados.
+     * Se ocorrer erro de criptografia, deleta o arquivo e cria um novo.
+     */
+    private fun createEncryptedSharedPreferences(): SharedPreferences {
+        return try {
+            EncryptedSharedPreferences.create(
+                context,
+                "user_session",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: AEADBadTagException) {
+            Log.e("SecureUserSessionStorage", "AEADBadTagException ao criar EncryptedSharedPreferences. Deletando arquivo corrompido.", e)
+            deleteCorruptedPreferences()
+            createFreshSharedPreferences()
+        } catch (e: IOException) {
+            Log.e("SecureUserSessionStorage", "IOException ao criar EncryptedSharedPreferences. Deletando arquivo corrompido.", e)
+            deleteCorruptedPreferences()
+            createFreshSharedPreferences()
+        } catch (e: Exception) {
+            Log.e("SecureUserSessionStorage", "Erro ao criar EncryptedSharedPreferences: ${e.javaClass.simpleName}. Tentando recuperação.", e)
+            deleteCorruptedPreferences()
+            try {
+                createFreshSharedPreferences()
+            } catch (fallbackException: Exception) {
+                Log.e("SecureUserSessionStorage", "Falha na recuperação. Usando SharedPreferences não criptografado como fallback.", fallbackException)
+                context.getSharedPreferences("user_session_fallback", Context.MODE_PRIVATE)
+            }
+        }
+    }
+    
+    /**
+     * Deleta o arquivo de preferências corrompido.
+     */
+    private fun deleteCorruptedPreferences() {
+        try {
+            context.deleteSharedPreferences("user_session")
+            Log.i("SecureUserSessionStorage", "Arquivo de preferências corrompido deletado com sucesso")
+        } catch (e: Exception) {
+            Log.e("SecureUserSessionStorage", "Erro ao deletar preferências corrompidas: ${e.message}", e)
+            // Tentar limpar o arquivo manualmente
+            try {
+                context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
+                    .edit()
+                    .clear()
+                    .apply()
+            } catch (clearException: Exception) {
+                Log.e("SecureUserSessionStorage", "Erro ao limpar preferências: ${clearException.message}", clearException)
+            }
+        }
+    }
+    
+    /**
+     * Cria um novo EncryptedSharedPreferences limpo.
+     */
+    private fun createFreshSharedPreferences(): SharedPreferences {
+        return EncryptedSharedPreferences.create(
+            context,
+            "user_session",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
     
     private val json = Json { ignoreUnknownKeys = true }
     

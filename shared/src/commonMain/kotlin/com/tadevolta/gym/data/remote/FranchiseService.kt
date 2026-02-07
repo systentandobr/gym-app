@@ -1,6 +1,8 @@
 package com.tadevolta.gym.data.remote
 
+import com.tadevolta.gym.data.manager.TokenManager
 import com.tadevolta.gym.data.models.*
+import com.tadevolta.gym.data.repositories.AuthRepository
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -23,7 +25,9 @@ interface FranchiseService {
 
 class FranchiseServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: (() -> String?)? = null
+    private val tokenProvider: suspend () -> String? = { null },
+    private val authRepository: AuthRepository? = null,
+    private val tokenManager: TokenManager? = null
 ) : FranchiseService {
     
     override suspend fun findNearby(
@@ -35,18 +39,22 @@ class FranchiseServiceImpl(
     ): Result<List<NearbyFranchise>> {
         return try {
             val url = "${EnvironmentConfig.API_BASE_URL}/franchises/nearby"
-            val response = client.get(url) {
-                lat?.let { parameter("lat", it) }
-                lng?.let { parameter("lng", it) }
-                parameter("marketSegment", marketSegment)
-                parameter("radius", radius)
-                parameter("limit", limit)
-                headers {
-                    tokenProvider?.invoke()?.let { 
-                        append("Authorization", "Bearer $it") 
-                    }
-                }
-            }
+            val response = executeWithRetry(
+                client = client,
+                authRepository = authRepository,
+                tokenManager = tokenManager,
+                tokenProvider = tokenProvider,
+                maxRetries = 3,
+                requestBuilder = {
+                    url(url)
+                    lat?.let { parameter("lat", it) }
+                    lng?.let { parameter("lng", it) }
+                    parameter("marketSegment", marketSegment)
+                    parameter("radius", radius)
+                    parameter("limit", limit)
+                },
+                responseHandler = { it }
+            )
             
             // Verificar status code antes de parsear
             if (response.status.value == 400) {

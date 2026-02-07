@@ -1,5 +1,6 @@
 package com.tadevolta.gym.data.remote
 
+import com.tadevolta.gym.data.manager.TokenManager
 import com.tadevolta.gym.data.repositories.AuthRepository
 import com.tadevolta.gym.utils.auth.UnauthenticatedException
 import io.ktor.client.*
@@ -13,16 +14,18 @@ import io.ktor.http.*
  * Tenta refresh token primeiro, depois reautenticação com cache, e faz retry da requisição original.
  * 
  * @param client HttpClient para fazer as requisições
- * @param authRepository AuthRepository para reautenticação (opcional)
- * @param tokenProvider Função que retorna o token atual (será atualizada após reautenticação)
+ * @param authRepository AuthRepository para reautenticação
+ * @param tokenManager TokenManager para controle de concorrência e prevenção de expiração
+ * @param tokenProvider Função que retorna o token atual
  * @param maxRetries Número máximo de tentativas (padrão: 3)
  * @param requestBuilder Builder para configurar a requisição HTTP
  * @param responseHandler Handler para processar a resposta HTTP
  */
 suspend inline fun <T> executeWithRetry(
     client: HttpClient,
-    authRepository: AuthRepository?,
-    crossinline tokenProvider: () -> String?,
+    authRepository: AuthRepository? = null,
+    tokenManager: TokenManager? = null,
+    crossinline tokenProvider: suspend () -> String?,
     maxRetries: Int = 3,
     crossinline requestBuilder: HttpRequestBuilder.() -> Unit,
     crossinline responseHandler: (HttpResponse) -> T
@@ -32,15 +35,16 @@ suspend inline fun <T> executeWithRetry(
     
     while (retryCount <= maxRetries) {
         try {
+            // Obter token antes da requisição
+            val token = tokenProvider()
+            
             val response = client.request {
                 requestBuilder()
-                // Atualizar token se necessário (o requestBuilder já deve ter adicionado, mas atualizamos para garantir)
+                // Atualizar token
                 headers {
-                    // Remover Authorization antigo se existir
                     remove("Authorization")
-                    // Adicionar token atualizado
-                    tokenProvider()?.let { token ->
-                        append("Authorization", "Bearer $token")
+                    token?.let {
+                        append("Authorization", "Bearer $it")
                     }
                 }
             }
@@ -54,24 +58,30 @@ suspend inline fun <T> executeWithRetry(
             if (retryCount < maxRetries && authRepository != null) {
                 retryCount++
                 
-                // Tentar refresh token primeiro
+                // Aguardar se houver outro refresh em andamento
+                tokenManager?.waitForRefresh()
+                
+                // Tentar refresh token via AuthRepository
                 val refreshSuccess = authRepository.refreshTokenIfNeeded()
                 
+                // Marcar refresh como concluído no TokenManager
+                tokenManager?.markRefreshCompleted(refreshSuccess)
+                
                 if (refreshSuccess) {
-                    // Refresh token funcionou, fazer retry da requisição com novo token
+                    // Refresh funcionou, fazer retry
                     continue
                 }
                 
-                // Refresh token falhou, tentar reautenticação com cache
+                // Se refresh falhou, tentar reautenticação com cache
                 val reauthResult = authRepository.reauthenticateWithCache()
                 
                 when (reauthResult) {
                     is com.tadevolta.gym.data.models.Result.Success -> {
-                        // Reautenticação funcionou, fazer retry da requisição com novo token
+                        // Reautenticação funcionou, fazer retry
                         continue
                     }
                     is com.tadevolta.gym.data.models.Result.Error -> {
-                        // Reautenticação falhou, forçar logout e lançar exceção
+                        // Reautenticação falhou, forçar logout
                         try {
                             authRepository.forceLogout()
                         } catch (e: Exception) {
@@ -95,7 +105,7 @@ suspend inline fun <T> executeWithRetry(
                     }
                 }
             } else {
-                // Excedeu número máximo de tentativas ou authRepository não disponível
+                // Excedeu número máximo de tentativas
                 if (authRepository != null) {
                     try {
                         authRepository.forceLogout()
@@ -112,11 +122,11 @@ suspend inline fun <T> executeWithRetry(
             throw e
         } catch (e: Exception) {
             lastException = e
-            // Se não for 401, propagar erro imediatamente
+            // Se não for timeout, propagar erro imediatamente
             if (e !is io.ktor.client.network.sockets.SocketTimeoutException) {
                 throw e
             }
-            // Timeout pode tentar novamente se ainda tiver tentativas
+            // Timeout pode tentar novamente
             if (retryCount >= maxRetries) {
                 throw e
             }

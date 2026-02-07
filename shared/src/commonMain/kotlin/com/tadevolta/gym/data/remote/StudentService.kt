@@ -1,5 +1,6 @@
 package com.tadevolta.gym.data.remote
 
+import com.tadevolta.gym.data.manager.TokenManager
 import com.tadevolta.gym.data.models.*
 import com.tadevolta.gym.data.repositories.AuthRepository
 import com.tadevolta.gym.utils.auth.UnauthenticatedException
@@ -30,8 +31,9 @@ interface StudentService {
 
 class StudentServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?,
-    private val authRepository: AuthRepository? = null
+    private val tokenProvider: suspend () -> String?,
+    private val authRepository: AuthRepository? = null,
+    private val tokenManager: TokenManager? = null
 ) : StudentService {
     
     override suspend fun createStudent(
@@ -95,10 +97,11 @@ class StudentServiceImpl(
                 }
             }
             
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -107,7 +110,6 @@ class StudentServiceImpl(
                         }
                         method = HttpMethod.Post
                         headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
                             append("Content-Type", "application/json")
                         }
                         contentType(ContentType.Application.Json)
@@ -156,17 +158,17 @@ class StudentServiceImpl(
     
     override suspend fun getStudentByUserId(userId: String): Result<Student> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
                         url("${EnvironmentConfig.API_BASE_URL}/students/by-user/$userId")
                         method = HttpMethod.Get
                         headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
                             append("Content-Type", "application/json")
                         }
                     },
@@ -228,10 +230,11 @@ class StudentServiceImpl(
                 phone?.let { put("phone", it) }
             }
             
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -240,7 +243,6 @@ class StudentServiceImpl(
                         }
                         method = HttpMethod.Patch
                         headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
                             append("Content-Type", "application/json")
                         }
                         contentType(ContentType.Application.Json)

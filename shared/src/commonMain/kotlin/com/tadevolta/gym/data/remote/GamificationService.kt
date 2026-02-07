@@ -1,5 +1,6 @@
 package com.tadevolta.gym.data.remote
 
+import com.tadevolta.gym.data.manager.TokenManager
 import com.tadevolta.gym.data.models.*
 import com.tadevolta.gym.data.repositories.AuthRepository
 import com.tadevolta.gym.utils.auth.UnauthenticatedException
@@ -22,16 +23,18 @@ interface GamificationService {
 
 class GamificationServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?,
-    private val authRepository: AuthRepository? = null
+    private val tokenProvider: suspend () -> String?,
+    private val authRepository: AuthRepository? = null,
+    private val tokenManager: TokenManager? = null
 ) : GamificationService {
     
     override suspend fun getGamificationData(userId: String): Result<GamificationData> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -39,17 +42,13 @@ class GamificationServiceImpl(
                             takeFrom("${EnvironmentConfig.API_BASE_URL}/gamification/students/$userId")
                         }
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$userId") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                 }
             }
             
@@ -96,10 +95,11 @@ class GamificationServiceImpl(
     
     override suspend fun getRanking(unitId: String, limit: Int): Result<List<RankingPosition>> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -109,17 +109,13 @@ class GamificationServiceImpl(
                         parameter("unitId", unitId)
                         parameter("limit", limit)
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/gamification/ranking") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                     parameter("unitId", unitId)
                     parameter("limit", limit)
                 }
@@ -157,26 +153,23 @@ class GamificationServiceImpl(
     
     override suspend fun getWeeklyActivity(studentId: String): Result<WeeklyActivity> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
                         url("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/weekly-activity")
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/weekly-activity") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                 }
             }
             
@@ -212,10 +205,11 @@ class GamificationServiceImpl(
     
     override suspend fun shareProgress(userId: String): Result<ShareableProgress> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -223,17 +217,13 @@ class GamificationServiceImpl(
                             takeFrom("${EnvironmentConfig.API_BASE_URL}/gamification/students/$userId/share")
                         }
                         method = HttpMethod.Post
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.post("${EnvironmentConfig.API_BASE_URL}/gamification/students/$userId/share") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                 }
             }
             
@@ -269,26 +259,23 @@ class GamificationServiceImpl(
     
     override suspend fun getTeamMetrics(teamId: String): Result<TeamMetrics> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
                         url("${EnvironmentConfig.API_BASE_URL}/gamification/teams/$teamId/metrics")
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/gamification/teams/$teamId/metrics") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                 }
             }
             
@@ -334,10 +321,11 @@ class GamificationServiceImpl(
     
     override suspend fun getTeamsRanking(unitId: String): Result<List<TeamRankingPosition>> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -346,17 +334,13 @@ class GamificationServiceImpl(
                         }
                         parameter("unitId", unitId)
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/gamification/teams/ranking") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                     parameter("unitId", unitId)
                 }
             }

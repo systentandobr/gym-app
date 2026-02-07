@@ -1,5 +1,6 @@
 package com.tadevolta.gym.data.remote
 
+import com.tadevolta.gym.data.manager.TokenManager
 import com.tadevolta.gym.data.models.*
 import com.tadevolta.gym.data.repositories.AuthRepository
 import com.tadevolta.gym.utils.auth.UnauthenticatedException
@@ -29,8 +30,9 @@ interface TrainingService {
 
 class TrainingServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?,
-    private val authRepository: AuthRepository? = null
+    private val tokenProvider: suspend () -> String?,
+    private val authRepository: AuthRepository? = null,
+    private val tokenManager: TokenManager? = null
 ) : TrainingService {
 
     private val json = Json {
@@ -74,10 +76,11 @@ class TrainingServiceImpl(
     
     override suspend fun createTrainingExecution(planId: String): Result<TrainingExecution> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -85,9 +88,7 @@ class TrainingServiceImpl(
                             takeFrom("${EnvironmentConfig.API_BASE_URL}/trainings/executions")
                         }
                         method = HttpMethod.Post
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                         contentType(ContentType.Application.Json)
                         setBody(mapOf("trainingPlanId" to planId))
                     },
@@ -95,9 +96,7 @@ class TrainingServiceImpl(
                 )
             } else {
                 client.post("${EnvironmentConfig.API_BASE_URL}/trainings/executions") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                     contentType(ContentType.Application.Json)
                     setBody(mapOf("trainingPlanId" to planId))
                 }
@@ -117,10 +116,11 @@ class TrainingServiceImpl(
         executedSets: List<ExecutedSet>
     ): Result<TrainingExecution> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -128,9 +128,7 @@ class TrainingServiceImpl(
                             takeFrom("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId/exercises/$exerciseId")
                         }
                         method = HttpMethod.Patch
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                         contentType(ContentType.Application.Json)
                         setBody(mapOf("executedSets" to executedSets))
                     },
@@ -138,9 +136,7 @@ class TrainingServiceImpl(
                 )
             } else {
                 client.patch("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId/exercises/$exerciseId") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                     contentType(ContentType.Application.Json)
                     setBody(mapOf("executedSets" to executedSets))
                 }
@@ -165,18 +161,17 @@ class TrainingServiceImpl(
                 emptyMap<String, Any>()
             }
             
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
                         url("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId/complete")
                         method = HttpMethod.Patch
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                         contentType(ContentType.Application.Json)
                         setBody(body)
                     },
@@ -184,9 +179,7 @@ class TrainingServiceImpl(
                 )
             } else {
                 client.patch("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId/complete") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                     contentType(ContentType.Application.Json)
                     setBody(body)
                 }
@@ -202,10 +195,11 @@ class TrainingServiceImpl(
     
     override suspend fun getActiveTrainingExecution(): Result<TrainingExecution?> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -213,17 +207,13 @@ class TrainingServiceImpl(
                             takeFrom("${EnvironmentConfig.API_BASE_URL}/trainings/executions/active")
                         }
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/trainings/executions/active") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                 }
             }
             
@@ -241,26 +231,23 @@ class TrainingServiceImpl(
     
     override suspend fun getTrainingExecutionsByPlan(planId: String): Result<List<TrainingExecution>> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
                         url("${EnvironmentConfig.API_BASE_URL}/trainings/executions/plan/$planId")
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/trainings/executions/plan/$planId") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                 }
             }
             
@@ -274,10 +261,11 @@ class TrainingServiceImpl(
     
     override suspend fun getTrainingExecutionById(trainingId: String): Result<TrainingExecution> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -285,17 +273,13 @@ class TrainingServiceImpl(
                             takeFrom("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId")
                         }
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/trainings/executions/$trainingId") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                 }
             }
             

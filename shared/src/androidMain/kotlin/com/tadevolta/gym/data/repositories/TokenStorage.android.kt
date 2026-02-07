@@ -19,13 +19,74 @@ actual class SecureTokenStorage(private val context: Context) : TokenStorage {
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
     
-    private val sharedPreferences: SharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        "auth_tokens",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    private val sharedPreferences: SharedPreferences = createEncryptedSharedPreferences()
+    
+    /**
+     * Cria o EncryptedSharedPreferences com tratamento de erro para corrupção de dados.
+     * Se ocorrer erro de criptografia, deleta o arquivo e cria um novo.
+     */
+    private fun createEncryptedSharedPreferences(): SharedPreferences {
+        return try {
+            EncryptedSharedPreferences.create(
+                context,
+                "auth_tokens",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: AEADBadTagException) {
+            Log.e("SecureTokenStorage", "AEADBadTagException ao criar EncryptedSharedPreferences. Deletando arquivo corrompido.", e)
+            deleteCorruptedPreferences()
+            createFreshSharedPreferences()
+        } catch (e: IOException) {
+            Log.e("SecureTokenStorage", "IOException ao criar EncryptedSharedPreferences. Deletando arquivo corrompido.", e)
+            deleteCorruptedPreferences()
+            createFreshSharedPreferences()
+        } catch (e: Exception) {
+            Log.e("SecureTokenStorage", "Erro ao criar EncryptedSharedPreferences: ${e.javaClass.simpleName}. Tentando recuperação.", e)
+            deleteCorruptedPreferences()
+            try {
+                createFreshSharedPreferences()
+            } catch (fallbackException: Exception) {
+                Log.e("SecureTokenStorage", "Falha na recuperação. Usando SharedPreferences não criptografado como fallback.", fallbackException)
+                context.getSharedPreferences("auth_tokens_fallback", Context.MODE_PRIVATE)
+            }
+        }
+    }
+    
+    /**
+     * Deleta o arquivo de preferências corrompido.
+     */
+    private fun deleteCorruptedPreferences() {
+        try {
+            context.deleteSharedPreferences("auth_tokens")
+            Log.i("SecureTokenStorage", "Arquivo de preferências corrompido deletado com sucesso")
+        } catch (e: Exception) {
+            Log.e("SecureTokenStorage", "Erro ao deletar preferências corrompidas: ${e.message}", e)
+            // Tentar limpar o arquivo manualmente
+            try {
+                context.getSharedPreferences("auth_tokens", Context.MODE_PRIVATE)
+                    .edit()
+                    .clear()
+                    .apply()
+            } catch (clearException: Exception) {
+                Log.e("SecureTokenStorage", "Erro ao limpar preferências: ${clearException.message}", clearException)
+            }
+        }
+    }
+    
+    /**
+     * Cria um novo EncryptedSharedPreferences limpo.
+     */
+    private fun createFreshSharedPreferences(): SharedPreferences {
+        return EncryptedSharedPreferences.create(
+            context,
+            "auth_tokens",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
     
     private val json = Json { ignoreUnknownKeys = true }
     

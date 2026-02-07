@@ -1,5 +1,6 @@
 package com.tadevolta.gym.data.remote
 
+import com.tadevolta.gym.data.manager.TokenManager
 import com.tadevolta.gym.data.models.*
 import com.tadevolta.gym.data.repositories.AuthRepository
 import com.tadevolta.gym.utils.auth.UnauthenticatedException
@@ -19,16 +20,18 @@ interface TrainingPlanService {
 
 class TrainingPlanServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?,
-    private val authRepository: AuthRepository? = null
+    private val tokenProvider: suspend () -> String?,
+    private val authRepository: AuthRepository? = null,
+    private val tokenManager: TokenManager? = null
 ) : TrainingPlanService {
     
     override suspend fun getTrainingPlans(studentId: String?, status: String?): Result<List<TrainingPlan>> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -38,17 +41,13 @@ class TrainingPlanServiceImpl(
                         studentId?.let { parameter("studentId", it) }
                         status?.let { parameter("status", it) }
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/training-plans") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                     studentId?.let { parameter("studentId", it) }
                     status?.let { parameter("status", it) }
                 }
@@ -77,10 +76,11 @@ class TrainingPlanServiceImpl(
     
     override suspend fun getTrainingPlanById(id: String): Result<TrainingPlan> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -88,17 +88,13 @@ class TrainingPlanServiceImpl(
                             takeFrom("${EnvironmentConfig.API_BASE_URL}/training-plans/$id")
                         }
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/training-plans/$id") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                 }
             }
             

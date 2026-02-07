@@ -1,5 +1,6 @@
 package com.tadevolta.gym.data.remote
 
+import com.tadevolta.gym.data.manager.TokenManager
 import com.tadevolta.gym.data.models.*
 import com.tadevolta.gym.data.repositories.AuthRepository
 import com.tadevolta.gym.utils.auth.UnauthenticatedException
@@ -19,16 +20,18 @@ interface TeamService {
 
 class TeamServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?,
-    private val authRepository: AuthRepository? = null
+    private val tokenProvider: suspend () -> String?,
+    private val authRepository: AuthRepository? = null,
+    private val tokenManager: TokenManager? = null
 ) : TeamService {
     
     override suspend fun getTeams(): Result<List<Team>> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -36,17 +39,13 @@ class TeamServiceImpl(
                             takeFrom("${EnvironmentConfig.API_BASE_URL}/teams")
                         }
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/teams") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                 }
             }
             
@@ -93,26 +92,23 @@ class TeamServiceImpl(
     
     override suspend fun getTeam(id: String): Result<Team> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
                         url("${EnvironmentConfig.API_BASE_URL}/teams/$id")
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/teams/$id") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                 }
             }
             
@@ -159,10 +155,11 @@ class TeamServiceImpl(
     
     override suspend fun getTeamMetrics(teamId: String): Result<TeamMetrics> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -170,17 +167,13 @@ class TeamServiceImpl(
                             takeFrom("${EnvironmentConfig.API_BASE_URL}/teams/$teamId/metrics")
                         }
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 client.get("${EnvironmentConfig.API_BASE_URL}/teams/$teamId/metrics") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                 }
             }
             

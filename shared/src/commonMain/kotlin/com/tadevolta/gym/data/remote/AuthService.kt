@@ -62,6 +62,21 @@ class AuthServiceImpl(
                 }
             }
             
+            // Verificar status HTTP antes de deserializar
+            if (response.status.value >= 400) {
+                // Tentar deserializar como ErrorResponse
+                try {
+                    val errorResponse: ErrorResponse = response.body()
+                    val errorMessage = errorResponse.formattedMessage 
+                        ?: errorResponse.error 
+                        ?: "Erro ao fazer login"
+                    return Result.Error(Exception(errorMessage))
+                } catch (e: Exception) {
+                    // Se não conseguir deserializar como ErrorResponse, usar mensagem genérica
+                    return Result.Error(Exception("Erro ao fazer login: ${response.status.description}"))
+                }
+            }
+            
             // A API retorna diretamente LoginApiResponse, não ApiResponse
             val apiResponse: LoginApiResponse = response.body()
             
@@ -100,6 +115,9 @@ class AuthServiceImpl(
             )
             
             Result.Success(loginResponse)
+        } catch (e: io.ktor.serialization.JsonConvertException) {
+            // Erro de serialização - pode ser formato inesperado
+            Result.Error(Exception("Erro ao processar resposta do servidor: ${e.message}"))
         } catch (e: Exception) {
             Result.Error(e)
         }

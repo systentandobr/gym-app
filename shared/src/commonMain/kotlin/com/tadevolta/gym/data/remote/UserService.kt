@@ -1,5 +1,6 @@
 package com.tadevolta.gym.data.remote
 
+import com.tadevolta.gym.data.manager.TokenManager
 import com.tadevolta.gym.data.models.*
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -16,17 +17,19 @@ interface UserService {
 
 class UserServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?,
-    private val authRepository: com.tadevolta.gym.data.repositories.AuthRepository? = null
+    private val tokenProvider: suspend () -> String?,
+    private val authRepository: com.tadevolta.gym.data.repositories.AuthRepository? = null,
+    private val tokenManager: TokenManager? = null
 ) : UserService {
     
     override suspend fun getCurrentUser(): Result<User> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 // Usar helper com retry automático
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -34,18 +37,14 @@ class UserServiceImpl(
                             takeFrom("${EnvironmentConfig.API_BASE_URL}/users/profile")
                         }
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 // Fallback sem retry
                 client.get("${EnvironmentConfig.API_BASE_URL}/users/profile") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                 }
             }
             
@@ -66,11 +65,12 @@ class UserServiceImpl(
     
     override suspend fun updateProfile(data: UpdateUserData): Result<User> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 // Usar helper com retry automático
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -78,9 +78,7 @@ class UserServiceImpl(
                             takeFrom("${EnvironmentConfig.API_BASE_URL}/users/profile")
                         }
                         method = HttpMethod.Patch
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                         contentType(ContentType.Application.Json)
                         setBody(data)
                     },
@@ -89,9 +87,7 @@ class UserServiceImpl(
             } else {
                 // Fallback sem retry
                 client.patch("${EnvironmentConfig.API_BASE_URL}/users/profile") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                     contentType(ContentType.Application.Json)
                     setBody(data)
                 }

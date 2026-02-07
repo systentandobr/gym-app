@@ -1,5 +1,6 @@
 package com.tadevolta.gym.data.remote
 
+import com.tadevolta.gym.data.manager.TokenManager
 import com.tadevolta.gym.data.models.*
 import com.tadevolta.gym.data.repositories.AuthRepository
 import com.tadevolta.gym.utils.auth.UnauthenticatedException
@@ -19,8 +20,9 @@ interface CheckInService {
 
 class CheckInServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?,
-    private val authRepository: AuthRepository? = null
+    private val tokenProvider: suspend () -> String?,
+    private val authRepository: AuthRepository? = null,
+    private val tokenManager: TokenManager? = null
 ) : CheckInService {
     
     override suspend fun checkIn(studentId: String, location: Location?): Result<CheckIn> {
@@ -34,19 +36,18 @@ class CheckInServiceImpl(
                 }
             }
             
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 // Usar helper com retry automático
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
                         url("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/check-in")
                         method = HttpMethod.Post
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                         contentType(ContentType.Application.Json)
                         setBody(jsonBody)
                     },
@@ -55,9 +56,7 @@ class CheckInServiceImpl(
             } else {
                 // Fallback sem retry
                 client.post("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/check-in") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                     contentType(ContentType.Application.Json)
                     setBody(jsonBody)
                 }
@@ -214,11 +213,12 @@ class CheckInServiceImpl(
         endDate: String?
     ): Result<CheckInHistory> {
         return try {
-            val response = if (authRepository != null) {
+            val response = if (authRepository != null || tokenManager != null) {
                 // Usar helper com retry automático
                 executeWithRetry(
                     client = client,
                     authRepository = authRepository,
+                    tokenManager = tokenManager,
                     tokenProvider = tokenProvider,
                     maxRetries = 3,
                     requestBuilder = {
@@ -229,18 +229,14 @@ class CheckInServiceImpl(
                         startDate?.let { parameter("startDate", it) }
                         endDate?.let { parameter("endDate", it) }
                         method = HttpMethod.Get
-                        headers {
-                            tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                        }
+                        
                     },
                     responseHandler = { it }
                 )
             } else {
                 // Fallback sem retry
                 client.get("${EnvironmentConfig.API_BASE_URL}/gamification/students/$studentId/check-ins") {
-                    headers {
-                        tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                    }
+                    
                     parameter("limit", limit)
                     startDate?.let { parameter("startDate", it) }
                     endDate?.let { parameter("endDate", it) }

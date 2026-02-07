@@ -1,6 +1,8 @@
 package com.tadevolta.gym.data.remote
 
+import com.tadevolta.gym.data.manager.TokenManager
 import com.tadevolta.gym.data.models.*
+import com.tadevolta.gym.data.repositories.AuthRepository
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -17,16 +19,25 @@ interface BioimpedanceService {
 
 class BioimpedanceServiceImpl(
     private val client: HttpClient,
-    private val tokenProvider: () -> String?
+    private val tokenProvider: suspend () -> String?,
+    private val authRepository: AuthRepository? = null,
+    private val tokenManager: TokenManager? = null
 ) : BioimpedanceService {
     
     override suspend fun getHistory(studentId: String): Result<BioimpedanceHistory> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/students/$studentId/bioimpedance/history") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                }
-            }
+            val response = executeWithRetry(
+                client = client,
+                authRepository = authRepository,
+                tokenManager = tokenManager,
+                tokenProvider = tokenProvider,
+                maxRetries = 3,
+                requestBuilder = {
+                    url("${EnvironmentConfig.API_BASE_URL}/students/$studentId/bioimpedance/history")
+                },
+                responseHandler = { it }
+            )
+            
             val apiResponse: ApiResponse<BioimpedanceHistory> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
@@ -41,12 +52,19 @@ class BioimpedanceServiceImpl(
     
     override suspend fun getProgress(studentId: String, period: String): Result<BioimpedanceProgress> {
         return try {
-            val response = client.get("${EnvironmentConfig.API_BASE_URL}/students/$studentId/bioimpedance/progress") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                }
-                parameter("period", period)
-            }
+            val response = executeWithRetry(
+                client = client,
+                authRepository = authRepository,
+                tokenManager = tokenManager,
+                tokenProvider = tokenProvider,
+                maxRetries = 3,
+                requestBuilder = {
+                    url("${EnvironmentConfig.API_BASE_URL}/students/$studentId/bioimpedance/progress")
+                    parameter("period", period)
+                },
+                responseHandler = { it }
+            )
+            
             val apiResponse: ApiResponse<BioimpedanceProgress> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
@@ -64,13 +82,21 @@ class BioimpedanceServiceImpl(
         measurement: BioimpedanceMeasurement
     ): Result<BioimpedanceMeasurement> {
         return try {
-            val response = client.post("${EnvironmentConfig.API_BASE_URL}/students/$studentId/bioimpedance") {
-                headers {
-                    tokenProvider()?.let { append("Authorization", "Bearer $it") }
-                }
-                contentType(ContentType.Application.Json)
-                setBody(measurement)
-            }
+            val response = executeWithRetry(
+                client = client,
+                authRepository = authRepository,
+                tokenManager = tokenManager,
+                tokenProvider = tokenProvider,
+                maxRetries = 3,
+                requestBuilder = {
+                    method = HttpMethod.Post
+                    url("${EnvironmentConfig.API_BASE_URL}/students/$studentId/bioimpedance")
+                    contentType(ContentType.Application.Json)
+                    setBody(measurement)
+                },
+                responseHandler = { it }
+            )
+            
             val apiResponse: ApiResponse<BioimpedanceMeasurement> = response.body()
             
             if (apiResponse.success && apiResponse.data != null) {
