@@ -35,7 +35,7 @@ fun TrainingPlanScreen(
     LaunchedEffect(studentId) {
         viewModel.loadPlansByStudentId(studentId)
     }
-    
+   
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -120,16 +120,16 @@ private fun TrainingPlansList(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Planos de ",
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
+Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Planos de ",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            text = "Treino",
+                    )
+                    Text(
+                        text = "Treino",
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 color = PurplePrimary,
                                 fontWeight = FontWeight.Bold

@@ -3,8 +3,11 @@ package com.tadevolta.gym.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,8 +20,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tadevolta.gym.data.models.*
+import com.tadevolta.gym.ui.components.ProgressGamificationCard
 import com.tadevolta.gym.ui.components.WorkoutCard
 import com.tadevolta.gym.ui.theme.BackgroundDark
+import com.tadevolta.gym.ui.theme.CardDark
 import com.tadevolta.gym.ui.theme.MutedForegroundDark
 import com.tadevolta.gym.ui.theme.PurplePrimary
 import com.tadevolta.gym.ui.viewmodels.TrainingPlanViewModel
@@ -37,25 +42,50 @@ fun TrainingScreen(
     LaunchedEffect(planId) {
         viewModel.loadPlan(planId)
     }
-    
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    val title = when (val state = planResult) {
-                        is Result.Success -> {
-                            val dayName = dayOfWeek?.let { getDayName(it) }
-                            if (dayName != null) "$dayName - ${state.data.name}" else state.data.name
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 24.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Meus Treinos",
+                                style = MaterialTheme.typography.headlineLarge.copy(
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                            Text(
+                                text = "Escolha seu treino de hoje",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = MutedForegroundDark
+                                )
+                            )
                         }
-                        else -> "Treino"
+
+                        // User Avatar placeholder as seen in image
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(CardDark, RoundedCornerShape(24.dp))
+                                .padding(4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarToday,
+                                contentDescription = "Calendário",
+                                tint = PurplePrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
@@ -69,6 +99,7 @@ fun TrainingScreen(
         },
         containerColor = BackgroundDark
     ) { padding ->
+    
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -106,6 +137,8 @@ private fun TrainingExercisesList(
     dayOfWeek: Int? = null,
     onExerciseClick: (Exercise) -> Unit
 ) {
+    val listState = rememberLazyListState()
+
     val exercisesToShow = if (dayOfWeek != null) {
         plan.weeklySchedule.find { it.dayOfWeek == dayOfWeek }?.exercises ?: emptyList()
     } else {
@@ -113,12 +146,22 @@ private fun TrainingExercisesList(
             plan.weeklySchedule.flatMap { it.exercises }
         }
     }
-    
+
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // Gamification Card
+        item {
+            ProgressGamificationCard(
+                currentStreak = 0,
+                checkInsThisMonth = 0,
+                totalCheckIns = 365
+            )
+        }
+
         if (exercisesToShow.isEmpty()) {
             item {
                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -135,8 +178,9 @@ private fun TrainingExercisesList(
                         title = exercise.name,
                         sets = exercise.sets,
                         reps = exercise.reps,
-                        restTime = "${exercise.restTime ?: 60}s descanso",
+                        restTime = "${exercise.restTime ?: 60}s Descanso",
                         imageUrl = exercise.primaryImageUrl,
+                        notes = exercise.notes,
                         onClick = { onExerciseClick(exercise) }
                     )
                 }

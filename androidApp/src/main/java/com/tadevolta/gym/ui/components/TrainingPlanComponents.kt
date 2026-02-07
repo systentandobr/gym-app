@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tadevolta.gym.data.models.ExerciseDifficulty
@@ -29,38 +31,44 @@ fun ProgressGamificationCard(
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 8.dp),
         colors = CardDefaults.cardColors(containerColor = CardDark),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(24.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             // Sequência Atual
             Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(PurplePrimary.copy(alpha = 0.2f)),
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                colors = listOf(PurplePrimary, Color(0xFFEC4899))
+                            )
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Default.LocalFireDepartment,
+                        Icons.Default.MilitaryTech,
                         contentDescription = null,
-                        tint = PurplePrimary,
-                        modifier = Modifier.size(24.dp)
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
                     )
                 }
                 Column {
                     Text(
                         text = "SEQUÊNCIA ATUAL",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = MutedForegroundDark,
+                            color = PurplePrimary,
+                            fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
                     )
@@ -90,7 +98,12 @@ fun ProgressGamificationCard(
                     )
                 )
                 Text(
-                    text = "$checkInsThisMonth/$totalCheckIns",
+                    text = androidx.compose.ui.text.buildAnnotatedString {
+                        withStyle(style = androidx.compose.ui.text.SpanStyle(color = Color(0xFF3B82F6), fontWeight = FontWeight.Bold)) {
+                            append("$checkInsThisMonth")
+                        }
+                        append("/$totalCheckIns")
+                    },
                     style = MaterialTheme.typography.headlineSmall.copy(
                         color = Color.White,
                         fontWeight = FontWeight.Bold
@@ -326,6 +339,8 @@ fun WorkoutCard(
     restTime: String,
     iconColor: Color = PurplePrimary,
     imageUrl: String? = null,
+    notes: String? = null,
+    isRecommended: Boolean = false,
     onClick: () -> Unit
 ) {
     Card(
@@ -334,60 +349,97 @@ fun WorkoutCard(
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 8.dp),
         colors = CardDefaults.cardColors(containerColor = CardDark),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(24.dp),
+        border = if (isRecommended) BorderStroke(1.dp, PurplePrimary.copy(alpha = 0.5f)) else null
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Exercise Image or Placeholder
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(iconColor.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (imageUrl != null) {
-                    // TODO: Load image
-                } else {
-                    Icon(
-                        Icons.Default.FitnessCenter,
-                        contentDescription = null,
-                        tint = iconColor,
-                        modifier = Modifier.size(32.dp)
-                    )
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+
+                        if (isRecommended) {
+                            Box(
+                                modifier = Modifier
+                                    .background(PurplePrimary.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "RECOMENDADO",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = PurplePrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        ExerciseStat(
+                            icon = Icons.Default.Repeat, 
+                            value = "$sets Séries",
+                            tint = Color(0xFF3B82F6) // Blue
+                        )
+                        ExerciseStat(
+                            icon = Icons.Default.DirectionsRun, 
+                            value = reps,
+                            tint = Color(0xFFEC4899) // Pink
+                        )
+                        ExerciseStat(
+                            icon = Icons.Default.Timer, 
+                            value = restTime,
+                            tint = Color(0xFF8B5CF6) // Purple
+                        )
+                    }
                 }
+                
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MutedForegroundDark
+                )
             }
 
-            Column(modifier = Modifier.weight(1f)) {
+            if (!notes.isNullOrBlank()) {
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-                
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    text = androidx.compose.ui.text.buildAnnotatedString {
+                        withStyle(style = androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) {
+                            append("Notas: ")
+                        }
+                        withStyle(style = androidx.compose.ui.text.SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) {
+                            append(notes)
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MutedForegroundDark
+                    ),
                     modifier = Modifier.padding(top = 4.dp)
-                ) {
-                    ExerciseStat(icon = Icons.Default.Repeat, value = "$sets séries")
-                    ExerciseStat(icon = Icons.Default.DirectionsRun, value = reps)
-                    ExerciseStat(icon = Icons.Default.Timer, value = restTime)
-                }
+                )
             }
-            
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MutedForegroundDark
-            )
         }
     }
 }
@@ -395,7 +447,8 @@ fun WorkoutCard(
 @Composable
 private fun ExerciseStat(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    value: String
+    value: String,
+    tint: Color = MutedForegroundDark
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -404,7 +457,7 @@ private fun ExerciseStat(
         Icon(
             icon,
             contentDescription = null,
-            tint = MutedForegroundDark,
+            tint = tint,
             modifier = Modifier.size(14.dp)
         )
         Text(
