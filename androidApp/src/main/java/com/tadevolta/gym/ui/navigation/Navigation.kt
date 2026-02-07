@@ -322,9 +322,10 @@ fun AppNavigation(
             val planId = backStackEntry.arguments?.getString("planId") ?: ""
             // Extrair dayOfWeek de savedStateHandle se disponível
             val dayOfWeek = backStackEntry.savedStateHandle.get<Int>("dayOfWeek")
-            TrainingPlanScreen(
+            TrainingScreen(
                 planId = planId,
                 dayOfWeek = dayOfWeek,
+                onBackClick = { navController.popBackStack() },
                 onExerciseClick = { exercise ->
                     val exerciseRoute = "exercise/$planId/${exercise.exerciseId ?: exercise.name}"
                     navController.navigate(exerciseRoute) {
@@ -349,25 +350,6 @@ fun AppNavigation(
                             }
                         }
                     }
-                },
-                onPlanClick = { clickedPlanId ->
-                    navController.navigate("training_plan/$clickedPlanId")
-                },
-                onDayClick = { clickedPlanId, clickedDayOfWeek ->
-                    // Navegar para o plano e passar dayOfWeek via savedStateHandle
-                    navController.navigate("training_plan/$clickedPlanId") {
-                        launchSingleTop = true
-                    }
-                    // Aguardar um frame para garantir que a entrada foi criada
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                        kotlinx.coroutines.delay(50)
-                        try {
-                            val entry = navController.getBackStackEntry("training_plan/$clickedPlanId")
-                            entry.savedStateHandle["dayOfWeek"] = clickedDayOfWeek
-                        } catch (e: Exception) {
-                            // Se não conseguir acessar, tentar novamente
-                        }
-                    }
                 }
             )
         }
@@ -376,14 +358,6 @@ fun AppNavigation(
             val studentId = backStackEntry.arguments?.getString("studentId") ?: ""
             TrainingPlanScreen(
                 studentId = studentId,
-                onExerciseClick = { exercise ->
-                    // Navegar para execução do exercício - precisa do planId
-                    // Por enquanto, voltar para a lista
-                    navController.popBackStack()
-                },
-                onPlanClick = { planId ->
-                    navController.navigate("training_plan/$planId")
-                },
                 onDayClick = { planId, dayOfWeek ->
                     // Navegar para o plano com dayOfWeek
                     navController.navigate("training_plan/$planId") {

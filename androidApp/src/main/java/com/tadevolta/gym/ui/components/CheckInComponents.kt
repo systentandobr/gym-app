@@ -235,7 +235,7 @@ private val successMessages = listOf(
     "Que maravilha te ver por aqui, está preparado para começar o treino de hoje?",
     "Excelente! Check-in realizado com sucesso. Vamos treinar?",
     "Ótimo! Você está aqui. Hora de dar o seu melhor no treino!",
-    "Perfeito! Check-in confirmado. Bora treinar?"
+    "Perfeito! Check-in confirmado. Levanta DAÍ! Bora treinar?"
 )
 
 /**
